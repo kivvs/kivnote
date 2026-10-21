@@ -1,0 +1,75 @@
+name: Bug 报告
+description: 遇到了错误或异常行为
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        大部分问题都和具体文件有关，**能附上文件的话解决会快很多**。
+        涉及隐私请先脱敏，或描述文件的后缀、大小、由什么软件生成。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 你做了什么操作，看到了什么
+      placeholder: 打开 xxx.docx 后，内容区一片空白，状态栏显示 "PDF 52.0 KB 只读"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的结果
+      placeholder: 应该显示文档内容
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: KivNote 版本
+      description: 菜单 ⋯ → 关于记事本 里能看到
+      placeholder: 3.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows 版本
+      placeholder: Win11 23H2
+    validations:
+      required: true
+
+  - type: select
+    id: area
+    attributes:
+      label: 涉及的功能
+      options:
+        - 文本编辑
+        - 表格
+        - Word / docx
+        - PowerPoint / pptx
+        - PDF
+        - 十六进制 / 二进制
+        - 图片 / 音频 / 视频
+        - 界面 / 标签 / 设置
+        - 其它
+    validations:
+      required: true
+
+  - type: textarea
+    id: file
+    attributes:
+      label: 相关文件
+      description: 可以的话请附上，或描述它的特征
+      placeholder: 一个 21 KB 的 .doc，Word 2016 生成
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 控制台错误
+      description: 开发模式下运行（npm start）时终端里的报错
+      render: shell

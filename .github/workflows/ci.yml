@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装依赖
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: 主进程 / 预加载脚本语法检查
+        run: |
+          node --check main.js
+          node --check preload.js
+        shell: bash
+
+      - name: 渲染进程脚本语法检查
+        run: node scripts/check-syntax.js
+        shell: bash
+
+      - name: 脚本语法检查
+        run: |
+          python -m py_compile scripts/fetch-loffice.py
+          python -m py_compile scripts/make-zip.py
+        shell: bash
