@@ -4,7 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, webUtils, Menu, clipboard } 
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { execFile } = require('child_process');
+const { execFile, execSync } = require('child_process');
 const crypto = require('crypto');
 const os = require('os');
 let AdmZip = null;
@@ -322,6 +322,19 @@ function createWindow(openPath) {
               "window.native.loConvert('C:/Users/Lenovo/Desktop/信安物联网国助国励/信安1班/国助：计算机科学与工程学院2026-2027学年国家助学金拟推荐名单表.doc','pdf')"
             );
             console.log('[LO-TEST] %.1fs' , (Date.now() - t0) / 1000, JSON.stringify(r));
+          }
+          if (process.argv.includes('--layer-test')) {
+            const r = await win.webContents.executeJavaScript(
+              "JSON.stringify({spans: document.querySelectorAll('.textLayer span').length, page: document.querySelectorAll('.pdf-page').length})"
+            );
+            console.log('[LAYER] ' + r);
+          }
+          if (process.argv.includes('--xlsx-test')) {
+            const src = 'C:/Users/Lenovo/WorkBuddy/2026-10-21-14-15-36/app/testfiles/_patchtest.xlsx';
+            const r = await win.webContents.executeJavaScript(
+              "window.native.patchXlsx({path:'" + src + "', sheetIndex:0, cells:[{ref:'B2', value:'改名测试'},{ref:'C2', value:'88'}]})"
+            );
+            console.log('[XLSX] ' + JSON.stringify(r));
           }
           if (process.argv.includes('--ppt-all')) {
             await win.webContents.executeJavaScript("document.querySelector('[data-ppt=\"all\"]').dispatchEvent(new MouseEvent('click', {bubbles:true}))");
@@ -832,6 +845,138 @@ ipcMain.handle('lo:convert', async (e, { src, to }) => {
   }
 });
 
+/* ═════ 清理我们启动的 LibreOffice 进程 ═════ */
+
+function killOurSoffice() {
+  if (process.platform !== 'win32') return 0;
+  let n = 0;
+  try {
+    const out = execSync(
+      'wmic process where "name=\'soffice.bin\'" get ProcessId,ExecutablePath /format:csv',
+      { encoding: 'utf8', windowsHide: true, timeout: 15000 }
+    );
+    for (const line of String(out).split(/\r?\n/)) {
+      const t = line.trim();
+      if (!/soffice\.bin/i.test(t)) continue;
+      /* csv: <node>,<ExecutablePath>,<ProcessId> */
+      const m = /,([^,]*soffice\.bin[^,]*),(\d+)\s*$/i.exec(t);
+      if (!m) continue;
+      if (m[1].toLowerCase().indexOf('loffice') < 0) continue; // 不是我们内置的
+      try {
+        execSync('taskkill /PID ' + m[2] + ' /T /F', { windowsHide: true, timeout: 8000 });
+        n++;
+      } catch (e2) {}
+    }
+  } catch (e) {}
+  /* 兜底：启动器进程 */
+  try {
+    execSync('taskkill /IM soffice.exe /F', { windowsHide: true, timeout: 8000 });
+  } catch (e3) {}
+  return n;
+}
+
+ipcMain.handle('lo:cancel', () => {
+  const n = killOurSoffice();
+  return { ok: true, killed: n };
+});
+
+/* ═════ xlsx 保存：就地改单元格值，保留样式 ═════ */
+
+function xmlEscape(v) {
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function isNumericLike(v) {
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(String(v).trim());
+}
+
+/* 替换 <c r="B3" ...>...</c> 的内容，保留 s="..." 样式索引 */
+function patchCellInXml(xml, ref, value) {
+  const re = new RegExp('<c(\\s[^>]*\\br="' + ref + '"[^>]*)>([\\s\\S]*?)</c>');
+  const m = re.exec(xml);
+  if (!m) return null;
+
+  let attrs = m[1];
+  attrs = attrs.replace(/\st="[^"]*"/g, '');           // 去掉旧类型
+  if (!isNumericLike(value)) {
+    attrs = attrs + ' t="inlineStr"';                     // 非数字用行内字符串
+  }
+  const inner = isNumericLike(value)
+    ? '<v>' + xmlEscape(value) + '</v>'
+    : '<is><t xml:space="preserve">' + xmlEscape(value) + '</t></is>';
+
+  return xml.slice(0, m.index) + '<c' + attrs + '>' + inner + '</c>' + xml.slice(m.index + m[0].length);
+}
+
+/* 通过 workbook.xml + rels 找到工作表对应的 xml 路径 */
+function resolveSheetPath(zip, sheetIndex) {
+  try {
+    const wb = zip.readAsText(zip.getEntry('xl/workbook.xml'), 'utf8');
+    const relsXml = zip.readAsText(zip.getEntry('xl/_rels/workbook.xml.rels'), 'utf8');
+
+    const sheetRe = /<sheet\s[^>]*?r:id="([^"]+)"[^>]*?>/g;
+    let m, ids = [];
+    while ((m = sheetRe.exec(wb)) !== null) ids.push(m[1]);
+    if (!ids[sheetIndex]) return null;
+
+    const rId = ids[sheetIndex];
+    const relRe = new RegExp('<Relationship[^>]*?Id="' + rId + '"[^>]*?Target="([^"]+)"');
+    const rm = relRe.exec(relsXml);
+    if (!rm) return null;
+
+    let target = rm[1];
+    if (target.startsWith('/')) return target.slice(1);
+    const parts = ('xl/' + target).split('/');
+    const out = [];
+    for (const seg of parts) {
+      if (seg === '..') out.pop();
+      else if (seg !== '.' && seg !== '') out.push(seg);
+    }
+    return out.join('/');
+  } catch (e) {
+    return null;
+  }
+}
+
+ipcMain.handle('xlsx:patchCells', async (e, { path: src, sheetIndex, cells }) => {
+  if (!AdmZip) return { error: '解压库未加载' };
+  if (!isNumericLike(sheetIndex)) sheetIndex = 0;
+  try {
+    const raw = await fs.promises.readFile(src);
+    const zip = new AdmZip(raw);
+    const sheetPath = resolveSheetPath(zip, sheetIndex);
+    if (!sheetPath) return { error: '找不到对应的工作表 xml' };
+
+    const entry = zip.getEntry(sheetPath);
+    if (!entry) return { error: '工作表文件缺失：' + sheetPath };
+
+    let xml = zip.readAsText(entry, 'utf8');
+    let patched = 0;
+    const missing = [];
+
+    for (const c of cells) {
+      const next = patchCellInXml(xml, c.ref, c.value);
+      if (next) { xml = next; patched++; }
+      else missing.push(c.ref);
+    }
+
+    if (missing.length) {
+      return { error: 'MISSING_CELLS', missing: missing.slice(0, 20), patched: 0 };
+    }
+    if (!patched) return { ok: true, patched: 0 };
+
+    zip.updateFile(entry, Buffer.from(xml, 'utf8'));
+    zip.writeZip(src);
+    return { ok: true, patched: patched, mode: 'patch' };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 /* pptx = zip + 每页 slideN.xml + 图片等资源 */
 function normZipPath(target) {
   let t = String(target || '').trim();
@@ -924,6 +1069,13 @@ app.whenReady().then(() => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  try { killOurSoffice(); } catch (e) {}
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  try { killOurSoffice(); } catch (e) {}
+});
 
 process.on('uncaughtException', (err) => { console.error('[main] uncaught', err); });

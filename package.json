@@ -1,7 +1,7 @@
 {
   "name": "kivnote",
   "productName": "KivNote",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "深色 macOS 风格的多功能记事本：文本、表格、Word、PPT、PDF、二进制，一个窗口全看",
   "main": "main.js",
   "author": {
@@ -74,12 +74,50 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        "portable"
+        {
+          "target": "portable"
+        },
+        {
+          "target": "nsis"
+        }
       ]
     },
     "portable": {
       "artifactName": "KivNote-${version}-portable.${ext}"
     },
-    "compression": "normal"
+    "compression": "normal",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "KivNote",
+      "language": "2052",
+      "installerLanguages": [
+        "zh_CN"
+      ],
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "KivNote-${version}-Setup.${ext}"
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "txt",
+          "md",
+          "log",
+          "csv",
+          "json",
+          "xml",
+          "ini",
+          "conf",
+          "yml",
+          "yaml"
+        ],
+        "name": "KivNote 文本",
+        "description": "KivNote 文本文件",
+        "role": "Editor"
+      }
+    ]
   }
 }

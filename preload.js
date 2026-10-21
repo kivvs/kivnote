@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('native', {
   convert:     (p)       => ipcRenderer.invoke('doc:convert', p),
   loConvert:   (src, to) => ipcRenderer.invoke('lo:convert', { src: src, to: to }),
   loAvailable: ()        => ipcRenderer.invoke('lo:available'),
+  cancelConvert:()       => ipcRenderer.invoke('lo:cancel'),
+  patchXlsx:   (o)       => ipcRenderer.invoke('xlsx:patchCells', o),
   pptParts:    (p)       => ipcRenderer.invoke('ppt:parts', p),
   pptRender:   (p)       => ipcRenderer.invoke('ppt:renderNative', p),
   saveAs:      (c, name) => ipcRenderer.invoke('file:saveAs', { content: c, name }),

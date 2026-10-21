@@ -172,6 +172,22 @@
     box-shadow:0 10px 36px -8px rgba(0,0,0,.75);
     border-radius:2px;
   }
+  .pdf-page{position:relative;margin:0 auto}
+  .textLayer{
+    position:absolute;left:0;top:0;right:0;bottom:0;
+    overflow:hidden;line-height:1;opacity:1;
+    text-align:initial;forced-color-adjust:none;
+    transform-origin:0 0;
+  }
+  .textLayer span,.textLayer br{
+    color:transparent;position:absolute;white-space:pre;
+    cursor:text;transform-origin:0% 0%;unicode-bidi:isolate;
+    z-index:0;
+  }
+  .textLayer span.markedContent{top:0;height:0}
+  .textLayer ::selection{background:rgba(0,120,255,.28)}
+  .textLayer ::-moz-selection{background:rgba(0,120,255,.28)}
+  .textLayer br{display:block}
   .pdf-msg{color:#7a8a80;font-size:13px;padding:40px;text-align:center}
 
   /* hex 编辑视图 */
@@ -692,7 +708,7 @@
         </svg>
       </div>
       <div class="about-name">记事本</div>
-      <div class="about-ver">版本 3.0.0</div>
+      <div class="about-ver">版本 3.1.0</div>
       <p class="about-desc">深色 macOS 风的多功能记事本<br>文本 · 图片 · 音视频 · PDF · 表格 · 二进制</p>
       <div class="about-meta">
         <div><span>作者</span><b>kivvs</b></div>
@@ -727,7 +743,7 @@
     <div class="mline"></div>
     <button data-cmd="settings"><span>设置</span></button>
     <button data-cmd="help"><span>使用说明</span><span class="k">F1</span></button>
-    <button data-cmd="about"><span>关于记事本</span><span class="k">v3.0.0</span></button>
+    <button data-cmd="about"><span>关于记事本</span><span class="k">v3.1.0</span></button>
   </div>
 
 </div>
@@ -1375,20 +1391,72 @@
     doc.getPage(p).then(function(page){
       var dpr = window.devicePixelRatio || 1;
       var vp = page.getViewport({ scale: t.pdfScale * dpr });
+      var cssVp = page.getViewport({ scale: t.pdfScale });
+      var cw = Math.round(cssVp.width), chh = Math.round(cssVp.height);
+
       var canvas = document.createElement('canvas');
       canvas.width = Math.round(vp.width);
       canvas.height = Math.round(vp.height);
-      canvas.style.width = Math.round(vp.width / dpr) + 'px';
-      canvas.style.height = Math.round(vp.height / dpr) + 'px';
+      canvas.style.width = cw + 'px';
+      canvas.style.height = chh + 'px';
+
+      var wrap = document.createElement('div');
+      wrap.className = 'pdf-page';
+      wrap.style.width = cw + 'px';
+      wrap.style.height = chh + 'px';
+      wrap.appendChild(canvas);
+
+      /* 透明文本层：让页面可以框选、复制、被查找 */
+      var layer = document.createElement('div');
+      layer.className = 'textLayer';
+      layer.style.width = cw + 'px';
+      layer.style.height = chh + 'px';
+      layer.style.setProperty('--scale-factor', String(t.pdfScale));
+      wrap.appendChild(layer);
+
       var box = $('pdfScroll');
       box.innerHTML = '';
-      box.appendChild(canvas);
+      box.appendChild(wrap);
+
       var ctx = canvas.getContext('2d', { alpha: false });
-      page.render({ canvasContext: ctx, viewport: vp }).promise.then(function(){
+      var draw = page.render({ canvasContext: ctx, viewport: vp }).promise;
+      draw.then(function(){
         $('pdfPage').textContent = p + ' / ' + doc.numPages;
         $('pdfZoom').textContent = Math.round(t.pdfScale * 100) + '%';
       }).catch(function(){});
+
+      /* 文本层独立渲染，失败不影响页面显示 */
+      try {
+        page.getTextContent().then(function(tc){
+          if (!pdfjsLib || !pdfjsLib.renderTextLayer) return;
+          pdfjsLib.renderTextLayer({
+            textContent: tc,
+            container: layer,
+            viewport: cssVp,
+            enhanceTextSelection: false
+          });
+          try { pdfCacheText(t, p, tc); } catch (e) {}
+        }).catch(function(){});
+      } catch (e) {}
     });
+  }
+
+  /* 缓存每页纯文本，供查找用 */
+  function pdfCacheText(t, pageNo, textContent){
+    if (!t.pdfTexts) t.pdfTexts = {};
+    var s2 = '';
+    var items = textContent.items || [];
+    for (var i = 0; i < items.length; i++) s2 += (items[i].str || '');
+    t.pdfTexts[pageNo] = s2;
+  }
+
+  /* 在当前页里找关键词，返回命中次数 */
+  function pdfFindInPage(t, needle){
+    var txt = (t.pdfTexts && t.pdfTexts[t.pdfPage]) || '';
+    if (!txt || !needle) return 0;
+    var n = 0, idx = 0, low = txt.toLowerCase(), nl = needle.toLowerCase();
+    while ((idx = low.indexOf(nl, idx)) >= 0){ n++; idx += nl.length; }
+    return n;
   }
 
   function pdfNav(op){
@@ -1935,6 +2003,41 @@
       });
       return;
     }
+    /* 先试就地改单元格：这样能保留字体、颜色、合并单元格等全部样式。
+       只有改到了原本不存在的单元格（比如空表新增）才退回整体重建。 */
+    tryPatchXlsx(t);
+    return;
+  }
+
+  function tryPatchXlsx(t){
+    var cells = [];
+    var otherSheets = false;
+    Object.keys(t.cellEdits || {}).forEach(function(k){
+      var parts = k.split(':');
+      var si = +parts[0];
+      if (si !== t.sheetIdx){ otherSheets = true; return; }
+      cells.push({ ref: colName(+parts[2]) + (+parts[1] + 1), value: t.cellEdits[k] });
+    });
+    if (!cells.length){ legacySaveXlsx(t); return; }
+
+    var go = function(){
+      native.patchXlsx({ path: t.path, sheetIndex: t.sheetIdx, cells: cells }).then(function(r){
+        if (r && r.ok){
+          t.cellEdits = {}; t.dirtySheets = {};
+          markDirty(t, false);
+          updateStatus();
+          var extra = otherSheets ? '\n（其它工作表的改动需要逐个切换到那张表再保存）' : '';
+          alert('已保存 ' + cells.length + ' 个单元格，原有格式保留' + extra);
+          return;
+        }
+        legacySaveXlsx(t);
+      }).catch(function(){ legacySaveXlsx(t); });
+    };
+    if (settings.backup && t.path) native.backup(t.path).then(go).catch(go);
+    else go();
+  }
+
+  function legacySaveXlsx(t){
     var changed = t.dirtySheets || {};
     Object.keys(changed).forEach(function(si){
       var name = t.wb.SheetNames[+si];
@@ -2393,6 +2496,20 @@
     addTab(doc);
   }
 
+  /* 转换进度计时 */
+  var convTimer = null;
+  function startConvTimer(){
+    var t0 = Date.now();
+    if (convTimer) clearInterval(convTimer);
+    convTimer = setInterval(function(){
+      var el = document.getElementById('convTimer');
+      if (el) el.textContent = '已用 ' + Math.round((Date.now() - t0) / 1000) + ' 秒';
+    }, 500);
+  }
+  function stopConvTimer(){
+    if (convTimer){ clearInterval(convTimer); convTimer = null; }
+  }
+
   /* 老格式 / PPT：优先用内置 LibreOffice 转成 PDF 或 xlsx，不依赖用户装 Office */
   function convertThenOpen(doc){
     var toPdf = (doc.kind === 'doc' || doc.kind === 'ppt' || doc.kind === 'pptx');
@@ -2402,12 +2519,19 @@
     if (canReuseTab()){ t = cur; }
     else { t = addTab(doc); }
 
+    startConvTimer();
     note('<div class="big">正在转换 ' + label + ' 文档…</div>' +
-         '<div class="sm">内置转换引擎正在处理，首次运行需要十几秒</div>');
+         '<div class="sm"><span id="convTimer">已用 0 秒</span>' +
+         ' · 首次转换需要十几秒，之后会缓存</div>' +
+         '<div><button data-cmd="cancelConvert">取消转换</button></div>');
+
+    var done = function(){ stopConvTimer(); };
 
     native.loConvert(doc.path, to).then(function(r){
+      done();
       if (!r || r.error){
         /* 内置引擎失败，退回本机 Office/WPS */
+        stopConvTimer();
         return native.convert(doc.path).then(function(r2){
           if (!r2 || r2.error){
             note('<div class="big">打不开这个文件</div>' +
@@ -2420,6 +2544,7 @@
       }
       return finishConvert(t, doc, r.path);
     }).catch(function(err){
+      stopConvTimer();
       note('<div class="big">转换失败</div><div class="sm">' + esc(err.message || '') + '</div>');
     });
   }
@@ -2710,6 +2835,12 @@
       case 'goto':  gotoOffset(); break;
       case 'undo':  doUndo(); break;
       case 'settings': openSettings(); break;
+      case 'cancelConvert':
+        stopConvTimer();
+        if (native) native.cancelConvert();
+        note('<div class="big">已取消</div><div class="sm">转换引擎已关闭</div>' +
+             '<div><button data-cmd="systemOpen">用系统程序打开</button></div>');
+        break;
       case 'redo':  doRedo(); break;
       case 'newWindow': if (native) native.newWindow(cur && cur.path ? cur.path : null); break;
       case 'menu':  $('menu').classList.toggle('on'); break;
