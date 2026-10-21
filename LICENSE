@@ -1,0 +1,90 @@
+KivNote License
+===============
+
+Copyright (c) 2026 kivvs. All rights reserved.
+版权所有 (c) 2026 kivvs。保留所有权利。
+
+
+中文
+----
+
+### 允许
+
+- 个人使用，不限设备数量
+- 学习、研究、教学演示
+- 公司或团队内部使用（非盈利性质）
+- 原样转发给他人，前提是保留本许可与作者署名
+
+### 禁止
+
+- 任何形式的**商业用途**：出售、出租、捆绑销售、随硬件搭售
+- 以本软件为核心提供付费服务
+- 去除、修改、隐藏作者署名与版权声明
+- 声称本软件为自己原创
+- 反编译后以其他名义重新发布
+
+### 二次开发
+
+需事先获得作者书面同意，并在显著位置注明来源。
+
+### 免责声明
+
+本软件按「现状」提供，不附带任何明示或暗示的担保，包括但不限于适销性、
+特定用途适用性和非侵权保证。作者不对使用本软件造成的任何直接或间接损失
+（含数据丢失、文件损坏、业务中断）承担责任。
+
+**使用「十六进制编辑的写回」和「表格保存」功能会直接修改原文件，
+没有自动备份。请自行做好备份。**
+
+
+English
+-------
+
+### Permitted
+
+- Personal use on any number of devices
+- Study, research and teaching demonstrations
+- Internal non-commercial use within a company or team
+- Redistribution in unmodified form, provided this license and the author
+  attribution are kept intact
+
+### Prohibited
+
+- Any **commercial use**: selling, renting, bundling, or pre-installing with hardware
+- Offering paid services whose core value is this software
+- Removing, altering, or hiding the author attribution and copyright notice
+- Claiming this software as your own work
+- Republishing under another name after decompilation
+
+### Derivative works
+
+Require prior written permission from the author, and must clearly credit
+the original source.
+
+### Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+**The hex-editing write-back and spreadsheet-save features modify the original
+file in place without automatic backup. Back up your files.**
+
+
+第三方组件 / Third-party components
+----------------------------------
+
+| Component  | Purpose                                    | License    |
+|------------|--------------------------------------------|------------|
+| Electron   | Desktop runtime                            | MIT        |
+| SheetJS    | Spreadsheet parsing and writing            | Apache-2.0 |
+| PDF.js     | PDF rendering and text extraction          | Apache-2.0 |
+| pdf-lib    | PDF page operations                        | MIT        |
+| adm-zip    | Reading Office (zip) containers            | MIT        |
+| LibreOffice| Office document conversion (bundled)       | MPL-2.0    |
+
+各组件遵循其原始许可，与本许可无关。
+Each component remains under its own license, independent of this one.

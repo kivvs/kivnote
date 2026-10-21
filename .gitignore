@@ -1,0 +1,42 @@
+# 依赖与构建产物
+node_modules/
+dist*/
+release/
+build/*.blockmap
+
+# 内置的 LibreOffice（750MB，用 scripts/fetch-loffice.py 自行获取）
+loffice/
+_lo/
+
+# 历史构建与备份
+.old/
+
+# 本地临时文件
+*.log
+*.tmp
+_p*.py
+_memo*.txt
+_patch*.py
+_test*.js
+_timing.py
+_diag.js
+_thot*.py
+_doc*.png
+_ppt*.png
+v_*.png
+z_*.png
+o_*.png
+p_*.png
+q_*.png
+r_*.png
+s_*.png
+t_*.png
+u_*.png
+a_*.png
+h_*.png
+v_final.png
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

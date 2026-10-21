@@ -1,0 +1,85 @@
+{
+  "name": "kivnote",
+  "productName": "KivNote",
+  "version": "3.0.0",
+  "description": "深色 macOS 风格的多功能记事本：文本、表格、Word、PPT、PDF、二进制，一个窗口全看",
+  "main": "main.js",
+  "author": {
+    "name": "kivvs",
+    "email": "3084631932@qq.com"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kivvs/kivnote.git"
+  },
+  "homepage": "https://github.com/kivvs/kivnote",
+  "bugs": {
+    "url": "https://github.com/kivvs/kivnote/issues"
+  },
+  "keywords": [
+    "notepad",
+    "editor",
+    "viewer",
+    "hex-editor",
+    "electron",
+    "docx",
+    "xlsx",
+    "pptx"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "shot": "electron . --shot",
+    "fetch:loffice": "python scripts/fetch-loffice.py",
+    "dist": "electron-builder --win portable",
+    "dist:dir": "electron-builder --win --dir",
+    "pack": "python scripts/make-zip.py"
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "3.11.174",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "io.github.kivvs.kivnote",
+    "productName": "KivNote",
+    "copyright": "Copyright © 2026 kivvs",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "node_modules/pdfjs-dist/legacy/build/pdf.js",
+      "node_modules/adm-zip/adm-zip.js",
+      "node_modules/adm-zip/util/**",
+      "node_modules/adm-zip/headers/**",
+      "node_modules/adm-zip/methods/**"
+    ],
+    "extraResources": [
+      {
+        "from": "loffice",
+        "to": "loffice"
+      }
+    ],
+    "npmRebuild": false,
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "KivNote-${version}-portable.${ext}"
+    },
+    "compression": "normal"
+  }
+}
