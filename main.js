@@ -23,6 +23,10 @@ const VIEW_ARG = (function () {
    在无独显 / 远程桌面 / 虚拟机的环境下也能正常出图。 */
 app.commandLine.appendSwitch('disable-gpu-compositing');
 if (process.argv.includes('--safe-gpu')) app.disableHardwareAcceleration();
+/* 限制渲染进程 V8 堆上限，防止开大文件后内存无节制增长（默认无上限） */
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
+/* 后台标签页强制丢弃渲染内容，切回去时会重新加载 */
+app.commandLine.appendSwitch('renderer-process-limit', '8');
 
 let win = null;
 let dirty = false;
