@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('native', {
   open:        ()        => ipcRenderer.invoke('file:open'),
   openPath:    (p)       => ipcRenderer.invoke('file:openPath', p),
   chunk:       (p, off, len, mode) => ipcRenderer.invoke('file:chunk', { path: p, offset: off, length: len, mode }),
-  save:        (p, c)    => ipcRenderer.invoke('file:save', { path: p, content: c }),
+  save:        (p, c, e) => ipcRenderer.invoke('file:save', { path: p, content: c, enc: e }),
   writeBytes:  (p, pat)  => ipcRenderer.invoke('file:writeBytes', { path: p, patches: pat }),
   readAll:     (p)       => ipcRenderer.invoke('file:readAll', p),
   writeBase64: (p, d)    => ipcRenderer.invoke('file:writeBase64', { path: p, data: d }),

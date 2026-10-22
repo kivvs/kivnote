@@ -4,521 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>记事本</title>
-<style>
-  :root{
-    --bg:#1e1e1e; --bar:#2a2a2a; --bar-2:#242424; --nav:#212121;
-    --fg:#c9c9c9; --title:#a8a8a8; --dot:#565656;
-    --green:#93a86b; --cyan:#5fb4b4; --orange:#dc9a6a;
-    --mono:"Cascadia Mono","Cascadia Code",Consolas,"Microsoft YaHei UI","PingFang SC",monospace;
-    --doc-size:15px;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0}
-  body{
-    background:var(--bg);font-family:var(--mono);color:var(--fg);
-    overflow:hidden;user-select:none;-webkit-font-smoothing:antialiased;
-  }
-  .win{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;background:var(--bg)}
-
-  /* ═════ 标题栏 ═════ */
-  .titlebar{
-    flex:0 0 44px;display:flex;align-items:center;padding:0 14px 0 20px;
-    background:var(--bar);box-shadow:inset 0 -1px 0 rgba(0,0,0,.35);
-    -webkit-app-region:drag;position:relative;z-index:7;
-  }
-  .dots{display:flex;gap:8px;flex:0 0 auto;-webkit-app-region:no-drag}
-  .dot{width:11px;height:11px;border-radius:50%;background:var(--dot);transition:background .15s}
-  .dots:hover .dot{background:#6d6d6d}
-  .dots:hover .dot:nth-child(1){background:#e0655a}
-  .dots:hover .dot:nth-child(2){background:#dfa94f}
-  .dots:hover .dot:nth-child(3){background:#65b06a}
-
-  .title{
-    margin-left:28px;font-size:14px;color:var(--title);letter-spacing:.2px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;
-  }
-  .title .muted{color:#6f6f6f}
-  .title .dirty{color:var(--orange)}
-
-  .wctrl{
-    margin-left:auto;display:flex;align-items:center;gap:9px;
-    padding-left:16px;margin-right:2px;-webkit-app-region:no-drag;
-  }
-  .wdot{width:11px;height:11px;border-radius:50%;cursor:default;
-    transition:transform .14s ease,box-shadow .14s ease,filter .14s}
-  .wdot.min{background:#dfa94f}
-  .wdot.max{background:#65b06a}
-  .wdot.close{background:#e0655a}
-  .wdot:hover{transform:scale(1.22);box-shadow:0 0 0 4px rgba(255,255,255,.07);filter:brightness(1.12)}
-  .wdot:active{transform:scale(.94);filter:brightness(.85)}
-
-  /* ═════ 导航栏 ═════ */
-  .navbar{
-    flex:0 0 42px;display:flex;align-items:center;gap:3px;
-    padding:0 12px 0 16px;background:var(--nav);
-    box-shadow:inset 0 -1px 0 rgba(0,0,0,.45);
-    -webkit-app-region:drag;position:relative;z-index:6;
-  }
-  .navbar > *{-webkit-app-region:no-drag}
-
-  .nb{
-    height:27px;padding:0 8px;display:flex;align-items:center;gap:6px;
-    background:transparent;border:1px solid transparent;border-radius:6px;
-    color:#9c9c9c;font-family:var(--mono);font-size:12px;cursor:pointer;
-    transition:background .12s,color .12s;flex:0 0 auto;
-  }
-  .nb:hover{background:#313131;color:#e2e2e2}
-  .nb:active{background:#3a3a3a}
-  .nb:disabled{opacity:.32;cursor:default}
-  .nb:disabled:hover{background:transparent;color:#9c9c9c}
-  .nb svg{width:14px;height:14px;stroke:currentColor;fill:none;
-    stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-  .nb-sep{width:1px;height:16px;background:#3a3a3a;margin:0 6px;flex:0 0 auto}
-
-  .seg{display:flex;align-items:center;gap:2px;background:#191919;
-    border:1px solid #333;border-radius:7px;padding:2px;flex:0 0 auto}
-  .seg button{
-    height:22px;padding:0 11px;border:0;border-radius:5px;background:transparent;
-    color:#828282;font-family:var(--mono);font-size:11.5px;cursor:pointer;
-    white-space:nowrap;transition:background .12s,color .12s;
-  }
-  .seg button:hover:not(.on):not(:disabled){color:#cfcfcf;background:#2c2c2c}
-  .seg button.on{background:#3a3a3a;color:var(--green)}
-  .seg button:disabled{opacity:.3;cursor:default}
-
-  /* ═════ 标签条 ═════ */
-  .tabs{
-    flex:1 1 auto;display:flex;align-items:center;gap:2px;
-    margin:0 6px;min-width:0;overflow-x:auto;overflow-y:hidden;
-    scrollbar-width:none;
-  }
-  .tabs::-webkit-scrollbar{height:0}
-  .tab{
-    height:26px;display:flex;align-items:center;gap:5px;
-    padding:0 5px 0 10px;border-radius:6px;
-    background:transparent;color:#8a8a8a;font-size:12px;
-    max-width:172px;min-width:76px;flex:1 1 auto;cursor:pointer;
-    transition:background .12s,color .12s;
-  }
-  .tab:hover{background:#2c2c2c;color:#c8c8c8}
-  .tab.on{background:#3a3a3a;color:#e8e8e8}
-  .tab .t-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
-  .tab .t-dot{color:var(--orange);font-size:11px;flex:0 0 auto}
-  .tab .t-x{
-    flex:0 0 auto;width:16px;height:16px;line-height:15px;text-align:center;
-    border-radius:4px;font-size:13px;color:#9a9a9a;opacity:.55;
-  }
-  .tab .t-x:hover{opacity:1;background:#4c4c4c;color:#fff}
-  .tab-add{
-    flex:0 0 auto;width:26px;height:26px;margin-left:2px;
-    display:flex;align-items:center;justify-content:center;
-    background:transparent;border:0;border-radius:6px;
-    color:#8a8a8a;font-size:16px;cursor:pointer;font-family:var(--mono);
-  }
-  .tab-add:hover{background:#313131;color:#e0e0e0}
-
-  /* ═════ 绿线 ═════ */
-  .rule{flex:0 0 auto;height:1px;width:632px;max-width:calc(100% - 56px);
-    margin:0 28px;background:var(--green);opacity:.8}
-
-  /* ═════ 内容区 ═════ */
-  .editor-wrap{flex:1 1 auto;min-height:0;padding:16px 28px;overflow:hidden;position:relative}
-  #editor{
-    display:none;width:100%;height:100%;margin:0;padding:0;border:0;outline:none;resize:none;
-    background:transparent;color:var(--fg);
-    font-family:var(--mono);font-size:var(--doc-size);line-height:1.73;
-    caret-color:var(--cyan);tab-size:4;overflow:auto;white-space:pre;
-    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;user-select:text;
-  }
-  .editor-wrap.is-text #editor{display:block}
-  #editor.wrap-on{white-space:pre-wrap;overflow-wrap:anywhere}
-  #editor::placeholder{color:#5a5a5a}
-  #editor::selection{background:#2f5d5d;color:#eaf6f6}
-  #editor::-webkit-scrollbar{width:11px;height:11px}
-  #editor::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
-
-  .stage{display:none;width:100%;height:100%;align-items:center;justify-content:center;overflow:auto}
-  .editor-wrap.is-view .stage{display:flex}
-  .stage > *{display:none}
-  #vImg{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;cursor:zoom-in;
-    box-shadow:0 10px 40px -10px rgba(0,0,0,.8);-webkit-user-drag:none}
-  #vVideo{max-width:100%;max-height:100%;border-radius:4px;background:#000}
-  #vAudio{width:440px;max-width:100%}
-  #vPdf{width:100%;height:100%;display:none;flex-direction:column;align-self:stretch;min-height:0}
-  .pdf-bar{flex:0 0 auto;display:flex;align-items:center;gap:4px;padding-bottom:9px}
-  .pdf-bar button{
-    height:24px;min-width:26px;padding:0 8px;
-    background:#1a1a1a;border:1px solid #333;border-radius:5px;
-    color:#9a9a9a;font-family:var(--mono);font-size:11.5px;cursor:pointer;
-  }
-  .pdf-bar button:hover{background:#2c2c2c;color:#e0e0e0;border-color:#444}
-  .pdf-bar button:disabled{opacity:.3;cursor:default}
-  .pdf-ind{
-    color:var(--green);font-size:11.5px;min-width:52px;text-align:center;
-    font-variant-numeric:tabular-nums;
-  }
-  .pdf-sep2{width:1px;height:14px;background:#333;margin:0 4px}
-  .pdf-sp{margin-left:auto}
-  .pdf-scroll{
-    flex:1 1 auto;overflow:auto;min-height:0;
-    background:#262626;border:1px solid #2e2e2e;border-radius:6px;
-    display:flex;justify-content:center;align-items:flex-start;padding:14px;
-    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
-  }
-  .pdf-scroll::-webkit-scrollbar{width:11px;height:11px}
-  .pdf-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #262626}
-  .pdf-scroll canvas{
-    display:block;background:#fff;
-    box-shadow:0 10px 36px -8px rgba(0,0,0,.75);
-    border-radius:2px;
-  }
-  .pdf-page{position:relative;margin:0 auto}
-  .textLayer{
-    position:absolute;left:0;top:0;right:0;bottom:0;
-    overflow:hidden;line-height:1;opacity:1;
-    text-align:initial;forced-color-adjust:none;
-    transform-origin:0 0;
-  }
-  .textLayer span,.textLayer br{
-    color:transparent;position:absolute;white-space:pre;
-    cursor:text;transform-origin:0% 0%;unicode-bidi:isolate;
-    z-index:0;
-  }
-  .textLayer span.markedContent{top:0;height:0}
-  .textLayer ::selection{background:rgba(0,120,255,.28)}
-  .textLayer ::-moz-selection{background:rgba(0,120,255,.28)}
-  .textLayer br{display:block}
-  .pdf-msg{color:#7a8a80;font-size:13px;padding:40px;text-align:center}
-
-  /* hex 编辑视图 */
-  #vHex{
-    margin:0;width:100%;height:100%;align-self:flex-start;overflow:auto;
-    font-family:var(--mono);font-size:13px;line-height:20px;
-    color:#8f9f97;outline:none;cursor:text;
-    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
-  }
-  #vHex::-webkit-scrollbar{width:11px;height:11px}
-  #vHex::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
-  .hline{white-space:pre}
-  .hline:hover{background:rgba(255,255,255,.018)}
-  .h-off{color:#5c6b62}
-  .h-hex{color:#9aae9f}
-  .h-asc{color:var(--green)}
-  .by{display:inline-block;width:2ch;text-align:left;border-radius:2px}
-  .by i{font-style:normal}
-  .hline .blk{
-    display:inline-block;width:3px;height:18px;vertical-align:-3px;
-    margin-right:7px;border-radius:1px;opacity:.85;
-  }
-  .by.pad{opacity:0}
-  .by.edited i{color:var(--orange)}
-  .by.cur{background:#2f5d5d;box-shadow:inset 0 0 0 1px #5fb4b4}
-  .by.cur i{color:#eaf6f6}
-
-  /* 二进制视图 */
-  #vBin{
-    margin:0;width:100%;height:100%;align-self:flex-start;overflow:auto;
-    font-family:var(--mono);font-size:13px;line-height:20px;
-    color:#8f9f97;user-select:text;
-    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
-  }
-  #vBin::-webkit-scrollbar{width:11px;height:11px}
-  #vBin::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
-  #vBin .h-off{color:#5c6b62}
-  #vBin em{color:var(--green);font-style:normal}
-  #vBin i{color:#54655c;font-style:normal}
-  #vBin .h-asc{color:var(--green)}
-
-  .v-note{flex-direction:column;gap:16px;color:#8f9f97;font-size:13px;text-align:center;line-height:1.9}
-  .v-note .big{font-size:15px;color:var(--green)}
-  .v-note .sm{font-size:12px;color:#6b7a72}
-  .v-note button{background:#2c2c2c;border:1px solid #3a3a3a;border-radius:6px;
-    color:#c0c0c0;font-family:var(--mono);font-size:12px;padding:7px 16px;cursor:pointer}
-  .v-note button:hover{background:#3a3a3a;color:#eee}
-
-  /* ═════ PPT 视图 ═════ */
-  #vPpt{width:100%;height:100%;display:none;flex-direction:column;align-self:stretch;min-height:0}
-  .ppt-bar{flex:0 0 auto;display:flex;align-items:center;gap:4px;padding-bottom:9px}
-  .ppt-bar button{
-    height:24px;min-width:26px;padding:0 9px;
-    background:#1a1a1a;border:1px solid #333;border-radius:5px;
-    color:#9a9a9a;font-family:var(--mono);font-size:11.5px;cursor:pointer;
-  }
-  .ppt-bar button:hover{background:#2c2c2c;color:#e0e0e0;border-color:#444}
-  .ppt-ind{color:var(--green);font-size:11.5px;min-width:96px;text-align:center;font-variant-numeric:tabular-nums}
-  .ppt-scroll{
-    flex:1 1 auto;overflow:auto;min-height:0;
-    background:#262626;border:1px solid #2e2e2e;border-radius:6px;
-    padding:16px;scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
-  }
-  .ppt-scroll::-webkit-scrollbar{width:11px;height:11px}
-  .ppt-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #262626}
-  .slide-wrap{margin:0 auto 18px;width:fit-content}
-  .slide-stage{
-    position:relative;background:#fff;overflow:hidden;border-radius:3px;
-    box-shadow:0 16px 50px -14px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.06);
-  }
-  .sl-bg{position:absolute;inset:0}
-  #vImg.img-orig{max-width:none;max-height:none;cursor:zoom-out}
-  .slide-img{
-    display:block;max-width:100%;border-radius:3px;background:#fff;
-    box-shadow:0 16px 50px -14px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.06);
-  }
-  .sl-sp{
-    position:absolute;box-sizing:border-box;overflow:hidden;
-    color:#1a1a1a;line-height:1.32;
-    font-family:"Microsoft YaHei","PingFang SC",sans-serif;
-    word-break:break-word;
-  }
-  .sl-img{position:absolute;object-fit:contain}
-  .sl-shape{position:absolute}
-  .sl-tbl{border-collapse:collapse;width:100%;font-size:12px;color:#1a1a1a}
-  .sl-tbl td{border:1px solid #999;padding:2px 5px}
-  .sl-fallback{position:absolute;inset:0;padding:32px 40px;color:#1a1a1a;overflow:auto;
-    font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.9}
-  .sl-fallback p{margin:0 0 6px}
-  .slide-no{
-    display:block;width:max-content;font-size:11px;color:#6b7a72;
-    border:1px solid #3a3a3a;border-radius:4px;padding:0 7px;margin-bottom:14px;
-  }
-
-  .sl-empty{color:#6b7a72;font-size:13px;padding:20px 0}
-
-  /* ═════ Word 文档视图 ═════ */
-  #vDoc{
-    width:100%;height:100%;align-self:flex-start;overflow:auto;
-    font-size:14px;line-height:1.95;color:#cfcfcf;
-    padding-right:18px;user-select:text;
-    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
-  }
-  #vDoc::-webkit-scrollbar{width:11px;height:11px}
-  #vDoc::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
-  #vDoc h1{font-size:21px;color:#ececec;margin:26px 0 12px;font-weight:600;line-height:1.5}
-  #vDoc h2{font-size:18px;color:#e2e2e2;margin:22px 0 10px;font-weight:600;line-height:1.5}
-  #vDoc h3{font-size:16px;color:#dadada;margin:18px 0 8px;font-weight:600;line-height:1.5}
-  #vDoc h4,#vDoc h5,#vDoc h6{font-size:14.5px;color:#c8c8c8;margin:14px 0 6px;font-weight:600}
-  #vDoc h1:first-child,#vDoc h2:first-child{margin-top:4px}
-  #vDoc p{margin:0 0 9px}
-  #vDoc b,#vDoc strong{color:#f0f0f0}
-  #vDoc i,#vDoc em{color:#bfcfc4}
-  #vDoc u{text-decoration-color:#6f8f6a}
-  #vDoc s,#vDoc del{color:#7a7a7a}
-  #vDoc .li{display:flex;gap:9px;margin:0 0 6px;padding-left:6px}
-  #vDoc .li-dot{color:var(--green);flex:0 0 auto}
-  #vDoc .doc-tbl{border-collapse:collapse;margin:14px 0;font-size:13px;max-width:100%}
-  #vDoc .doc-tbl td{border:1px solid #3a3a3a;padding:5px 11px;vertical-align:top}
-  #vDoc .doc-tbl tr:first-child td{background:#262626;color:#dadada}
-  #vDoc .doc-img{color:#6b7a72;font-size:12px;background:#242424;padding:1px 6px;border-radius:3px}
-
-  /* ═════ 表格视图 ═════ */
-  #vTable{width:100%;height:auto;max-height:100%;display:none;flex-direction:column;align-self:flex-start;min-height:0}
-  .tbl-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding-bottom:9px;min-height:26px}
-  .sheet-tabs{flex:0 1 auto;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;min-width:0}
-  .tbl-tools{flex:0 0 auto;display:flex;align-items:center;gap:3px;margin-left:auto}
-  .tbl-tools button{
-    height:24px;padding:0 8px;border:1px solid #333;border-radius:5px;
-    background:#1a1a1a;color:#8a8a8a;font-family:var(--mono);font-size:11px;
-    cursor:pointer;white-space:nowrap;
-  }
-  .tbl-tools button:hover{color:#e0e0e0;background:#2c2c2c;border-color:#444}
-  .tbl-tools button:active{background:#383838}
-  .tb-sep{width:1px;height:14px;background:#333;margin:0 5px;flex:0 0 auto}
-  .sort-ind{color:var(--green);font-style:normal;font-size:10px}
-  .sheet-tabs::-webkit-scrollbar{height:0}
-  .sheet-tabs button{
-    height:24px;padding:0 12px;border:1px solid #333;border-radius:5px;
-    background:#1a1a1a;color:#8a8a8a;font-family:var(--mono);font-size:11.5px;
-    cursor:pointer;white-space:nowrap;
-  }
-  .sheet-tabs button:hover{color:#d0d0d0;background:#262626}
-  .sheet-tabs button.on{background:#3a3a3a;color:var(--green);border-color:#4a4a4a}
-  .tbl-scroll{position:relative;flex:0 1 auto;width:fit-content;max-width:100%;height:fit-content;max-height:100%;min-height:0;overflow:auto;border:1px solid #2e2e2e;border-radius:6px;background:#1a1a1a;
-    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent}
-  .tbl-scroll::-webkit-scrollbar{width:11px;height:11px}
-  .tbl-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #1a1a1a}
-  #tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;font-family:var(--mono);
-    white-space:nowrap;user-select:text;table-layout:fixed}
-  #tbl th,#tbl td{border-right:1px solid #2b2b2b;border-bottom:1px solid #2b2b2b;padding:4px 10px;text-align:left}
-  #tbl thead th{position:sticky;top:0;background:#282828;color:#a8a8a8;font-weight:normal;z-index:2;
-    overflow:hidden;text-overflow:ellipsis}
-  #tbl thead th .col-rz{
-    position:absolute;right:0;top:0;width:7px;height:100%;
-    cursor:col-resize;z-index:5;
-  }
-  #tbl thead th .col-rz:hover{background:rgba(95,180,180,.45)}
-  #tbl .rn{position:sticky;left:0;background:#232323;color:#6f7f62;text-align:right;
-    user-select:none;z-index:1;min-width:44px;font-variant-numeric:tabular-nums}
-  #tbl thead .rn{z-index:3}
-  #tbl tbody tr:hover td{background:#262626}
-  #tbl tbody tr:hover .rn{background:#2c2c2c}
-  #tbl td{color:#c9c9c9;min-width:52px;max-width:420px;overflow:hidden;text-overflow:ellipsis}
-  #tbl td.num{text-align:right;color:#a9c08d}
-  #tbl td.sel{outline:2px solid #4d7f7f;outline-offset:-2px;background:#25302e !important;color:#eaf6f6}
-  #tbl td{cursor:cell}
-  .cell-edit{
-    position:absolute;z-index:6;box-sizing:border-box;
-    background:#1b1b1b;border:1px solid #5fb4b4;border-radius:2px;
-    color:#eaf6f6;font-family:var(--mono);font-size:12.5px;
-    padding:0 9px;outline:none;
-  }
-  .tbl-note{flex:0 0 auto;padding-top:8px;font-size:11.5px;color:#6b7a72}
-
-  /* ═════ 查找栏 ═════ */
-  .findbar{
-    position:absolute;top:10px;right:24px;z-index:30;
-    display:none;align-items:center;gap:6px;padding:7px 8px;
-    background:var(--bar-2);border:1px solid #383838;border-radius:8px;
-    box-shadow:0 14px 34px -10px rgba(0,0,0,.85);font-size:12px;
-  }
-  .findbar.on{display:flex}
-  .findbar input{
-    width:150px;height:26px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:5px;
-    color:var(--fg);font-family:var(--mono);font-size:12px;padding:0 8px;outline:none;user-select:text;
-  }
-  .findbar input:focus{border-color:#4d6f6f}
-  .findbar .cnt{color:var(--green);min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
-  .findbar .cnt.none{color:var(--orange)}
-  .findbar button{
-    height:26px;min-width:26px;background:#2c2c2c;border:1px solid #3a3a3a;border-radius:5px;
-    color:#a5a5a5;font-family:var(--mono);font-size:11px;cursor:pointer;padding:0 7px;
-  }
-  .findbar button:hover{background:#3a3a3a;color:#e0e0e0}
-
-  /* ═════ 菜单 ═════ */
-  .menu{
-    position:absolute;top:90px;right:14px;z-index:40;display:none;flex-direction:column;
-    min-width:214px;padding:5px;background:var(--bar-2);
-    border:1px solid #383838;border-radius:8px;
-    box-shadow:0 18px 40px -12px rgba(0,0,0,.9);
-  }
-  .menu.on{display:flex}
-  .menu button{
-    text-align:left;background:transparent;border:0;border-radius:5px;
-    color:#bdbdbd;font-family:var(--mono);font-size:12.5px;padding:7px 10px;cursor:pointer;
-    display:flex;justify-content:space-between;gap:18px;
-  }
-  .menu button:hover{background:#343434;color:#eaeaea}
-  .menu button:disabled{opacity:.32;cursor:default}
-  .menu button:disabled:hover{background:transparent;color:#bdbdbd}
-  .menu button .k{color:#6b6b6b;font-size:11px}
-  .menu .mline{height:1px;background:#343434;margin:4px 6px}
-  #menuRecent button{max-width:240px;padding:5px 12px}
-  .rc-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-family:var(--mono);font-size:11.5px;color:#9a9a9a}
-  #menuRecent button:hover .rc-name{color:#e8e8e8}
-
-  /* ═════ 关于 ═════ */
-  .about-mask{
-    position:absolute;inset:0;z-index:90;display:none;
-    align-items:center;justify-content:center;
-    background:rgba(8,10,12,.72);backdrop-filter:blur(3px);
-  }
-  .about-mask.on{display:flex}
-  .about-card{
-    width:396px;padding:26px 28px 22px;
-    background:#212121;border:1px solid #3a3a3a;border-radius:12px;
-    box-shadow:0 30px 70px -20px rgba(0,0,0,.95);
-    text-align:center;color:#c9c9c9;
-  }
-  .about-icon svg{width:52px;height:52px}
-  .about-name{margin-top:10px;font-size:17px;color:#e6e6e6;letter-spacing:2px}
-  .about-ver{font-size:11.5px;color:#6f7f62;margin-top:3px}
-  .about-desc{font-size:12px;color:#8f9f97;line-height:1.9;margin:14px 0 16px}
-  .about-meta{
-    display:flex;flex-direction:column;gap:6px;
-    padding:12px 14px;margin-bottom:14px;
-    background:#1a1a1a;border:1px solid #2e2e2e;border-radius:8px;
-    font-size:12px;
-  }
-  .about-meta div{display:flex;justify-content:space-between;gap:16px}
-  .about-meta span{color:#6b7a72}
-  .about-meta b{color:var(--green);font-weight:normal}
-  .about-lib{font-size:10.5px;color:#5c6b62;margin:0 0 10px}
-  .about-copy{font-size:10.5px;color:#5c6b62;line-height:1.8;margin:0 0 16px}
-  .about-ok{
-    height:30px;padding:0 22px;border:1px solid #3a3a3a;border-radius:6px;
-    background:#2c2c2c;color:#c9c9c9;font-family:var(--mono);font-size:12px;cursor:pointer;
-  }
-  .about-ok:hover{background:#3a3a3a;color:#fff}
-
-  /* ═════ 设置窗口 ═════ */
-  .set-mask{
-    position:absolute;inset:0;z-index:96;display:none;
-    align-items:center;justify-content:center;background:rgba(8,10,12,.6);
-  }
-  .set-mask.on{display:flex}
-  .set-card{
-    width:400px;padding:20px 22px 16px;
-    background:#212121;border:1px solid #3a3a3a;border-radius:10px;
-    box-shadow:0 24px 60px -18px rgba(0,0,0,.95);
-  }
-  .set-title{font-size:13px;color:#dcdcdc;margin-bottom:14px;letter-spacing:1px}
-  .set-row{
-    display:flex;align-items:flex-start;gap:9px;padding:9px 0;
-    border-bottom:1px solid #2b2b2b;font-size:12.5px;color:#b8b8b8;cursor:pointer;
-  }
-  .set-row:last-of-type{border-bottom:0}
-  .set-row input[type=checkbox]{
-    margin-top:2px;width:14px;height:14px;accent-color:#5fb4b4;cursor:pointer;flex:0 0 auto;
-  }
-  .set-row em{display:block;font-style:normal;font-size:11px;color:#6b7a72;margin-top:3px}
-  .set-lab{flex:1 1 auto}
-  .set-num{
-    width:88px;height:26px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:5px;
-    color:#e0e0e0;font-family:var(--mono);font-size:12px;padding:0 8px;outline:none;text-align:right;
-  }
-  .set-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-  .set-btns button{
-    height:27px;padding:0 16px;border:1px solid #3a3a3a;border-radius:6px;
-    background:#2c2c2c;color:#b8b8b8;font-family:var(--mono);font-size:12px;cursor:pointer;
-  }
-  .set-btns button:hover{background:#3a3a3a;color:#eee}
-  .set-btns button.primary{background:#2f4a44;border-color:#4a6f66;color:#cfe8e0}
-
-  /* ═════ 输入对话框 ═════ */
-  .ask-mask{
-    position:absolute;inset:0;z-index:95;display:none;
-    align-items:center;justify-content:center;background:rgba(8,10,12,.6);
-  }
-  .ask-mask.on{display:flex}
-  .ask-card{
-    width:340px;padding:18px 20px 16px;
-    background:#212121;border:1px solid #3a3a3a;border-radius:10px;
-    box-shadow:0 24px 60px -18px rgba(0,0,0,.95);
-  }
-  .ask-title{font-size:12.5px;color:#b7b7b7;margin-bottom:10px}
-  .ask-input{
-    width:100%;height:30px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;
-    color:#e4e4e4;font-family:var(--mono);font-size:12.5px;padding:0 10px;outline:none;
-  }
-  .ask-input:focus{border-color:#5fb4b4}
-  .ask-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-  .ask-btns button{
-    height:27px;padding:0 16px;border:1px solid #3a3a3a;border-radius:6px;
-    background:#2c2c2c;color:#b8b8b8;font-family:var(--mono);font-size:12px;cursor:pointer;
-  }
-  .ask-btns button:hover{background:#3a3a3a;color:#eee}
-  .ask-btns button.primary{background:#2f4a44;border-color:#4a6f66;color:#cfe8e0}
-  .ask-btns button.primary:hover{background:#3a5a52;color:#fff}
-
-  /* ═════ 状态栏 ═════ */
-  .statusbar{
-    flex:0 0 auto;padding:11px 28px 15px;display:flex;align-items:baseline;gap:18px;
-    font-size:12.5px;color:var(--green);white-space:nowrap;overflow:hidden;
-  }
-  .statusbar .st{color:var(--green)}
-  .statusbar .st.dim{color:#6e7f62;opacity:.85}
-  .statusbar .spacer{margin-left:auto}
-  .statusbar .st.sel{color:var(--orange)}
-  .statusbar .hide{display:none}
-
-  .drop{
-    position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
-    background:rgba(30,30,30,.88);border:1px dashed #4d6f5e;
-    color:var(--green);font-size:13px;letter-spacing:1px;
-  }
-  .drop.on{display:flex}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -577,6 +63,8 @@
   <div class="rule"></div>
 
   <div class="editor-wrap is-text" id="wrap">
+    <div class="gutter" id="gutter"></div>
+    <pre class="hl-layer" id="hlLayer" aria-hidden="true"></pre>
     <textarea id="editor" spellcheck="false" placeholder="在这里写点什么…&#10;&#10;Ctrl+O 打开任意文件（文本 / 图片 / 音视频 / PDF / 二进制）"></textarea>
 
     <div class="stage" id="stage">
@@ -584,6 +72,7 @@
       <video id="vVideo" controls></video>
       <audio id="vAudio" controls></audio>
       <div id="vPdf">
+        <div class="pdf-thumbs" id="pdfThumbs"></div>
         <div class="pdf-bar">
           <button data-pdf="prev" title="上一页">‹</button>
           <span class="pdf-ind" id="pdfPage">1 / 1</span>
@@ -916,7 +405,7 @@
 
   function renderNormal(t){
     var doc = t.doc;
-    if (!doc || doc.kind === 'text'){ showTextMode(); return; }
+    if (!doc || doc.kind === 'text'){ showTextMode(); refreshCodeDecor(t); return; }
     if (doc.kind === 'image'){ showStage('vImg'); $('vImg').src = doc.url; return; }
     if (doc.kind === 'video'){ showStage('vVideo'); $('vVideo').src = doc.url; return; }
     if (doc.kind === 'audio'){ showStage('vAudio'); $('vAudio').src = doc.url; return; }
@@ -931,7 +420,7 @@
 
   /* ═════════ 表格 ═════════ */
   var MAX_COLS = 120;
-  function maxRows(){ return (settings && settings.maxRows) || 2000; }
+  function maxRows(){ return (settings && settings.maxRows) || 50000; }
 
   function colName(i){
     var s = ''; i++;
@@ -1074,14 +563,57 @@
       html += '<th data-hc="' + c + '"><span>' + esc(label) + sInd + '</span>' +
               '<div class="col-rz" data-col="' + c + '"></div></th>';
     }
-    html += '</tr></thead><tbody>';
+    html += '</tr></thead><tbody id="tblBody"></tbody>';
+    $('tbl').innerHTML = html;
 
-    var MAX_ROWS = maxRows();
-    var limit = Math.min(bodyItems.length, MAX_ROWS);
-    for (var r = 0; r < limit; r++){
-      var row = bodyItems[r].row;
-      var absR = bodyItems[r].r;
-      html += '<tr><td class="rn">' + (r + 1) + '</td>';
+    /* 虚拟滚动：表头和列宽只建一次，数据行按滚动位置渲染 */
+    t._bodyItems = bodyItems;
+    t._colCount = colCount;
+    paintRows(t);
+
+    var MAX_ROWS2 = maxRows();
+    var note = '工作表 ' + sh.name + ' · ' + rows.length + ' 行 × ' + colCount + ' 列';
+    if (t.filter && String(t.filter.value || '') !== '') note += ' · 筛选中（' + bodyItems.length + ' 行）';
+    var clipped = bodyItems.length > MAX_ROWS2 || colCount >= MAX_COLS || (t.filter && String(t.filter.value || '') !== '');
+    if (clipped) note += ' · 仅显示前 ' + Math.min(bodyItems.length, MAX_ROWS2) + ' 行';
+    $('tblNote').textContent = clipped ? note : '';
+    $('tblNote').style.display = clipped ? 'block' : 'none';
+    t.tableInfo = note;
+    updateStatus();
+  }
+
+  /* ═════ 表格虚拟滚动 ═════
+     只渲染可视区域的行，前后用占位行撑出总高度。
+     这样 10 万行的表格也只有几十个 DOM 节点。 */
+  var ROW_H = 24;
+
+  function tblScroller(){
+    return $('tbl') ? $('tbl').parentNode : null;
+  }
+
+  function paintRows(t){
+    var body = document.getElementById('tblBody');
+    if (!body || !t._bodyItems) return;
+    var sc = tblScroller();
+    var items = t._bodyItems;
+    var total = Math.min(items.length, maxRows());
+    var st = (sc && sc.scrollTop) || 0;
+    var vh = (sc && sc.clientHeight) || 420;
+
+    var start = Math.max(0, Math.floor(st / ROW_H) - 6);
+    var cnt = Math.ceil(vh / ROW_H) + 14;
+    var end = Math.min(total, start + cnt);
+    var colCount = t._colCount;
+
+    var html = '';
+    if (start > 0){
+      html += '<tr class="vspacer" style="height:' + (start * ROW_H) + 'px">' +
+              '<td colspan="' + (colCount + 1) + '" style="padding:0;border:0"></td></tr>';
+    }
+    for (var r = start; r < end; r++){
+      var row = items[r].row;
+      var absR = items[r].r;
+      html += '<tr style="height:' + ROW_H + 'px"><td class="rn">' + (r + 1) + '</td>';
       for (var c2 = 0; c2 < colCount; c2++){
         var v = row[c2];
         var sv = (v === undefined || v === null) ? '' : String(v);
@@ -1090,17 +622,21 @@
       }
       html += '</tr>';
     }
-    html += '</tbody>';
-    $('tbl').innerHTML = html;
+    if (end < total){
+      html += '<tr class="vspacer" style="height:' + ((total - end) * ROW_H) + 'px">' +
+              '<td colspan="' + (colCount + 1) + '" style="padding:0;border:0"></td></tr>';
+    }
+    body.innerHTML = html;
+  }
 
-    var note = '工作表 ' + sh.name + ' · ' + rows.length + ' 行 × ' + colCount + ' 列';
-    if (t.filter && String(t.filter.value || '') !== '') note += ' · 筛选中（' + bodyItems.length + ' 行）';
-    var clipped = bodyItems.length > MAX_ROWS || colCount >= MAX_COLS || (t.filter && String(t.filter.value || '') !== '');
-    if (clipped) note += ' · 仅显示前 ' + Math.min(bodyRows.length, MAX_ROWS) + ' 行';
-    $('tblNote').textContent = clipped ? note : '';
-    $('tblNote').style.display = clipped ? 'block' : 'none';
-    t.tableInfo = note;
-    updateStatus();
+  /* 滚动到某一行（查找命中时用） */
+  function scrollToBodyIndex(t, idx){
+    var sc = tblScroller();
+    if (!sc) return;
+    var vh = sc.clientHeight || 420;
+    var target = Math.max(0, idx * ROW_H - vh / 2);
+    sc.scrollTop = target;
+    paintRows(t);
   }
 
   /* 当前选中的单元格坐标 */
@@ -1243,7 +779,7 @@
 
   /* ═════════ 设置 / 会话 ═════════ */
   var SETTINGS_KEY = 'notepad.settings.v2';
-  var settings = { restoreSession: true, backup: true, maxRows: 2000 };
+  var settings = { restoreSession: true, backup: true, maxRows: 50000, lineNumbers: true, syntax: true };
 
   function loadSettings(){
     try {
@@ -1257,14 +793,14 @@
   function openSettings(){
     $('setRestore').checked = !!settings.restoreSession;
     $('setBackup').checked = !!settings.backup;
-    $('setRows').value = settings.maxRows || 2000;
+    $('setRows').value = settings.maxRows || 50000;
     $('setMask').classList.add('on');
   }
   function applySettingsFromUI(){
     settings.restoreSession = $('setRestore').checked;
     settings.backup = $('setBackup').checked;
     var n = parseInt($('setRows').value, 10);
-    settings.maxRows = (isNaN(n) ? 2000 : Math.min(20000, Math.max(200, n)));
+    settings.maxRows = (isNaN(n) ? 50000 : Math.min(500000, Math.max(200, n)));
     saveSettings();
   }
 
@@ -1353,6 +889,23 @@
 
   $('vImg').addEventListener('click', toggleImgZoom);
 
+  $('editor').addEventListener('scroll', syncCodeScroll);
+
+  /* 表格滚动时重绘可视行 */
+  (function(){
+    var sc = document.querySelector('.tbl-scroll');
+    if (!sc) return;
+    var pending = false;
+    sc.addEventListener('scroll', function(){
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function(){
+        pending = false;
+        if (cur && cur._bodyItems) paintRows(cur);
+      });
+    }, { passive: true });
+  })();
+
   /* ═════ 第三方库按需加载 ═════
      启动时只装文本编辑器，表格/PDF/幻灯片用到哪个再装哪个，
      能把空窗口的渲染进程内存从 ~185MB 降到 ~80MB */
@@ -1368,6 +921,151 @@
       document.head.appendChild(sc);
     });
     return libCache[name];
+  }
+
+  /* ═════════ 语法高亮与行号 ═════════ */
+
+  var KEYWORDS = {
+    js: ('const let var function return if else for while class import export from new this null undefined ' +
+         'true false async await try catch switch case break continue typeof instanceof delete in of throw ' +
+         'finally do yield static get set extends super interface enum').split(' '),
+    py: ('def class return if elif else for while import from as pass break continue try except finally ' +
+         'raise with lambda yield global nonlocal assert del in is not and or None True False async await ' +
+         'self print len').split(' '),
+    json: 'true false null'.split(' '),
+    sh: ('if then else elif fi for while do done case esac function return echo export local cd source ' +
+         'alias unset trap exit').split(' '),
+    sql: ('select from where insert into values update set delete create table drop alter add index join ' +
+          'left right inner outer on group by order limit offset having distinct as and or not null like ' +
+          'between case when then end primary key foreign references').split(' '),
+    java: ('public private protected class interface extends implements static final void new return if ' +
+           'else for while try catch throw throws import package this super null true false abstract ' +
+           'synchronized volatile native').split(' '),
+    c: ('if else for while return int char float double void struct union enum static const sizeof typedef ' +
+        'break continue switch case default include define ifndef endif extern unsigned signed long short').split(' '),
+    go: ('func package import var const type struct interface map chan go defer if else for range return ' +
+         'switch case default break continue nil true false string int error').split(' '),
+    php: ('function echo if else elseif for while foreach return class public private protected static new ' +
+          'null true false array isset unset include require namespace use as try catch').split(' '),
+    xml: ''.split(' '),
+    html: ''.split(' ')
+  };
+
+  function langOf(name){
+    var m = /\.([a-z0-9]+)$/i.exec(String(name || ''));
+    var ext = m ? m[1].toLowerCase() : '';
+    if (ext === 'js' || ext === 'mjs' || ext === 'jsx' || ext === 'ts' || ext === 'tsx') return 'js';
+    if (ext === 'py' || ext === 'pyw') return 'py';
+    if (ext === 'json' || ext === 'jsonc') return 'json';
+    if (ext === 'sh' || ext === 'bash' || ext === 'zsh') return 'sh';
+    if (ext === 'sql') return 'sql';
+    if (ext === 'java' || ext === 'kt') return 'java';
+    if (ext === 'c' || ext === 'h' || ext === 'cpp' || ext === 'hpp' || ext === 'cc') return 'c';
+    if (ext === 'go') return 'go';
+    if (ext === 'php') return 'php';
+    return '';
+  }
+
+  /* 轻量词法扫描：字符串 / 注释 / 数字 / 关键字 */
+  function highlightCode(text, lang){
+    var kw = KEYWORDS[lang] || [];
+    var kset = {};
+    for (var i = 0; i < kw.length; i++) if (kw[i]) kset[kw[i]] = 1;
+    var lineCmt = (lang === 'py' || lang === 'sh') ? '#' : '//';
+    var n = text.length, i = 0, out = '';
+
+    function put(cls, str){
+      out += cls ? '<span class="' + cls + '">' + esc(str) + '</span>' : esc(str);
+    }
+
+    while (i < n){
+      var c = text[i];
+      /* 行注释 */
+      if (text.substr(i, lineCmt.length) === lineCmt){
+        var e = text.indexOf('\n', i); if (e < 0) e = n;
+        put('t-com', text.slice(i, e)); i = e; continue;
+      }
+      /* 块注释 */
+      if (text.substr(i, 2) === '/*' || text.substr(i, 4) === '<!--'){
+        var endTok = (text[i] === '/') ? '*/' : '-->';
+        var e2 = text.indexOf(endTok, i + 2);
+        e2 = (e2 < 0) ? n : e2 + endTok.length;
+        put('t-com', text.slice(i, e2)); i = e2; continue;
+      }
+      /* 字符串 */
+      if (c === '"' || c === "'" || c === '`'){
+        var j = i + 1;
+        while (j < n){
+          if (text[j] === '\\'){ j += 2; continue; }
+          if (text[j] === c){ j++; break; }
+          if (c !== '`' && text[j] === '\n') break;
+          j++;
+        }
+        put('t-str', text.slice(i, j)); i = j; continue;
+      }
+      /* 数字 */
+      if (c >= '0' && c <= '9'){
+        var k = i;
+        while (k < n && /[0-9a-fA-FxX.eE+\-]/.test(text[k])) k++;
+        put('t-num', text.slice(i, k)); i = k; continue;
+      }
+      /* 标识符 */
+      if (/[A-Za-z_$@]/.test(c)){
+        var m2 = /^[A-Za-z_$@][A-Za-z0-9_$@]*/.exec(text.slice(i));
+        var word = m2 ? m2[0] : c;
+        var cls = '';
+        if (kset[word]) cls = 't-kw';
+        else if (text[i + word.length] === '(') cls = 't-fn';
+        put(cls, word);
+        i += word.length;
+        continue;
+      }
+      put('', c); i++;
+    }
+    return out;
+  }
+
+  var HL_LIMIT = 300000;   /* 超过就不高亮，避免大文件卡顿 */
+
+  function refreshCodeDecor(t){
+    var w = wrapEl;
+    console.log('[HLDECOR] called, t.kind=' + (t&&t.kind) + ', isText=' + (w&&w.classList.contains('is-text')));
+    if (!w || !w.classList.contains('is-text')){
+      w.classList.remove('show-gutter', 'hl-on');
+      return;
+    }
+    var ed = $('editor');
+    var txt = (t && t.kind === 'text') ? (t.content || '') : '';
+    var wrapped = ed && ed.classList.contains('wrap-on');
+    var lang = langOf(t && t.name);
+    var canHl = lang && txt.length > 0 && txt.length < HL_LIMIT;
+
+    /* 行号：自动换行时行号对不上，隐藏 */
+    if (settings.lineNumbers !== false && !wrapped){
+      w.classList.add('show-gutter');
+      var lines = txt.split('\n').length;
+      var g = '';
+      for (var i = 1; i <= lines; i++) g += '<span>' + i + '</span>';
+      $('gutter').innerHTML = g;
+    } else {
+      w.classList.remove('show-gutter');
+    }
+
+    if (canHl && settings.syntax !== false){
+      $('hlLayer').innerHTML = highlightCode(txt, lang);
+      w.classList.add('hl-on');
+    } else {
+      w.classList.remove('hl-on');
+      $('hlLayer').innerHTML = '';
+    }
+    syncCodeScroll();
+  }
+
+  function syncCodeScroll(){
+    var ed = $('editor'), hl = $('hlLayer'), g = $('gutter');
+    if (!ed) return;
+    if (hl){ hl.scrollTop = ed.scrollTop; hl.scrollLeft = ed.scrollLeft; }
+    if (g){ g.scrollTop = ed.scrollTop; }
   }
 
   /* ═════════ 通用输入框 ═════════ */
@@ -1431,6 +1129,7 @@
         t.pdfDoc = doc;
         t.pdfPage = 1;
         t.pdfScale = 1.25;
+        buildThumbs(t);
         paintPdfPage(t);
       }).catch(function(err){
         pdfFail('PDF 解析失败：' + err.message);
@@ -1486,6 +1185,7 @@
       draw.then(function(){
         $('pdfPage').textContent = p + ' / ' + doc.numPages;
         $('pdfZoom').textContent = Math.round(t.pdfScale * 100) + '%';
+        try { markThumb(t); } catch (e) {}
       }).catch(function(){});
 
       /* 文本层独立渲染，失败不影响页面显示 */
@@ -2454,7 +2154,16 @@
     $('stView').textContent = ({ normal:'正常', hex:'十六进制', bin:'二进制' })[t.viewMode];
     $('stKind').textContent = t.kindLabel || '文本';
     $('stSize').textContent = fmtSize(t.size);
-    $('stEnc').textContent  = t.enc || (t.kind === 'table' ? '可编辑' : '只读');
+    var encShow = t.saveEnc ? t.saveEnc.toUpperCase() : (t.enc || '');
+    if (t.kind === 'text' && t.path){
+      encShow = (t.saveEnc ? t.saveEnc.toUpperCase() : (t.enc || 'UTF-8')) + ' ⤸';
+      $('stEnc').title = '点击切换保存编码（当前：' + (t.saveEnc ? t.saveEnc.toUpperCase() : '跟随打开时检测') + '）';
+      $('stEnc').style.cursor = 'pointer';
+    } else {
+      $('stEnc').title = '';
+      $('stEnc').style.cursor = '';
+    }
+    $('stEnc').textContent  = encShow || (t.kind === 'table' ? '可编辑' : '只读');
     $('btnSave').disabled = t.readonly && t.viewMode !== 'hex' && t.kind !== 'table';
     $('miPdfText').disabled = !(t.kind === 'pdf' && t.path);
     $('btnGoto').disabled = !(t.viewMode === 'hex' && t.path);
@@ -2480,6 +2189,7 @@
     if (t.kind === 'text'){
       showTextMode();
       editor.value = t.content;
+      refreshCodeDecor(t);
       editor.readOnly = false;
       var caret = t.caret, scroll = t.scroll;
       requestAnimationFrame(function(){
@@ -2655,7 +2365,7 @@
     if (t.readonly) return;
     var text = editor.value;
     if (t.path && !asNew){
-      native.save(t.path, text).then(function(r){
+      native.save(t.path, text, t.saveEnc).then(function(r){
         if (r && r.ok){ t.saved = text; markDirty(t, false); t.size = r.size; updateStatus(); }
         else alert((r && r.error) || '保存失败');
       });
@@ -2784,6 +2494,142 @@
     if (cur.kind === 'table' && cur.sheets){ runFindTable(); return; }
     if (cur.kind === 'pdf' && cur.pdfDoc){ runFindPdf(); return; }
     runFindText();
+  }
+
+  /* ═════ PDF 页面操作：导出页 / 旋转另存 ═════ */
+
+  function parsePageRange(str, total){
+    var out = [], seen = {};
+    String(str || '').split(',').forEach(function(part){
+      part = part.trim();
+      if (!part) return;
+      var m = /^(\d+)\s*-\s*(\d+)$/.exec(part);
+      if (m){
+        var a = +m[1], b = +m[2];
+        if (a > b){ var tmp = a; a = b; b = tmp; }
+        for (var i = a; i <= b; i++) if (i >= 1 && i <= total && !seen[i]){ seen[i] = 1; out.push(i); }
+      } else if (/^\d+$/.test(part)){
+        var num = +part;
+        if (num >= 1 && num <= total && !seen[num]){ seen[num] = 1; out.push(num); }
+      }
+    });
+    return out;
+  }
+
+  function bytesToB64(bytes){
+    var s = '', chunk = 0x8000;
+    for (var i = 0; i < bytes.length; i += chunk){
+      s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(s);
+  }
+
+  /* pdflib 按需加载后执行 */
+  function withPdfLib(fn){
+    if (window.PDFLib){ fn(); return; }
+    loadLib('pdflib.js').then(function(){
+      if (window.PDFLib) fn();
+      else alert('PDF 编辑组件加载失败');
+    }).catch(function(){ alert('PDF 编辑组件加载失败'); });
+  }
+
+  function savePdfBytes(bytes, suffix){
+    return native.saveAsBinary(bytesToB64(bytes),
+      (cur.name || 'output.pdf').replace(/\.pdf$/i, '') + suffix + '.pdf');
+  }
+
+  function exportPdfPages(t){
+    if (!t.pdfDoc) return;
+    var total = t.pdfDoc.numPages;
+    var q = window.prompt('导出哪些页？\n例：1,3-5\n共 ' + total + ' 页', '1-' + total);
+    if (q === null) return;
+    var pages = parsePageRange(q, total);
+    if (!pages.length){ alert('页码格式不对'); return; }
+    withPdfLib(function(){
+      native.readAll(t.path).then(function(r){
+        if (!r || r.error){ alert('读不到文件：' + ((r && r.error) || '')); return; }
+        PDFLib.PDFDocument.load(b64ToBytes(r.data), { ignoreEncryption: true }).then(function(src){
+          return PDFLib.PDFDocument.create().then(function(out){
+            return out.copyPages(src, pages.map(function(pg){ return pg - 1; })).then(function(copied){
+              copied.forEach(function(pg){ out.addPage(pg); });
+              return out.save();
+            });
+          });
+        }).then(function(bytes){
+          return savePdfBytes(bytes, ' - ' + (pages.length === total ? '副本' : '选中页'));
+        }).then(function(res){
+          if (res && res.ok) alert('已导出 ' + pages.length + ' 页到\n' + res.path);
+          else if (res && res.error) alert(res.error);
+        }).catch(function(err){ alert('导出失败：' + err.message); });
+      });
+    });
+  }
+
+  function rotatePdfPage(t){
+    if (!t.pdfDoc) return;
+    var pageNo = t.pdfPage;
+    withPdfLib(function(){
+      native.readAll(t.path).then(function(r){
+        if (!r || r.error){ alert('读不到文件：' + ((r && r.error) || '')); return; }
+        PDFLib.PDFDocument.load(b64ToBytes(r.data), { ignoreEncryption: true }).then(function(doc){
+          var page = doc.getPage(pageNo - 1);
+          var cur = page.getRotation().angle || 0;
+          page.setRotation(PDFLib.degrees((cur + 90) % 360));
+          return doc.save();
+        }).then(function(bytes){
+          return savePdfBytes(bytes, ' - 第' + pageNo + '页旋转');
+        }).then(function(res){
+          if (res && res.ok) alert('已另存旋转后的文件：\n' + res.path);
+          else if (res && res.error) alert(res.error);
+        }).catch(function(err){ alert('旋转失败：' + err.message); });
+      });
+    });
+  }
+
+  /* ═════ PDF 缩略图 ═════ */
+  function buildThumbs(t){
+    var box = $('pdfThumbs');
+    if (!box || !t.pdfDoc) return;
+    var n = t.pdfDoc.numPages;
+    if (n < 2){ box.classList.remove('on'); box.innerHTML = ''; return; }
+    box.classList.add('on');
+    box.innerHTML = '';
+    var scale = 60 / 792;   /* 按 A4 宽度估个大概，渲染时再按实际页面比例 */
+    for (var i = 1; i <= n; i++){
+      (function(pn){
+        var d = document.createElement('div');
+        d.className = 'thumb';
+        d.setAttribute('data-pn', pn);
+        var c = document.createElement('canvas');
+        d.appendChild(c);
+        var lab = document.createElement('div');
+        lab.className = 'pn'; lab.textContent = pn;
+        d.appendChild(lab);
+        d.addEventListener('click', function(){
+          t.pdfPage = pn;
+          paintPdfPage(t);
+        });
+        box.appendChild(d);
+        t.pdfDoc.getPage(pn).then(function(page){
+          var vp = page.getViewport({ scale: scale });
+          c.width = Math.max(20, Math.round(vp.width));
+          c.height = Math.max(20, Math.round(vp.height));
+          page.render({ canvasContext: c.getContext('2d'), viewport: vp });
+        }).catch(function(){});
+      })(i);
+    }
+  }
+
+  function markThumb(t){
+    var box = $('pdfThumbs');
+    if (!box) return;
+    var cur2 = box.querySelector('.thumb.cur');
+    if (cur2) cur2.classList.remove('cur');
+    var el = box.querySelector('.thumb[data-pn="' + t.pdfPage + '"]');
+    if (el){
+      el.classList.add('cur');
+      if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   /* PDF 查找：逐页取文本再匹配 */
@@ -2921,11 +2767,14 @@
     if (!matches.length) return;
     mIdx = (idx + matches.length) % matches.length;
     var m = matches[mIdx];
-    var td = $('tbl').querySelector('td[data-r="' + m.r + '"][data-c="' + m.c + '"]');
-    if (td){
-      selectCell(td);
-      td.scrollIntoView({ block: 'center', inline: 'nearest' });
+    /* 虚拟滚动下目标行可能还没渲染，先滚过去 */
+    if (cur && cur._bodyItems){
+      for (var i = 0; i < cur._bodyItems.length; i++){
+        if (cur._bodyItems[i].r === m.r){ scrollToBodyIndex(cur, i); break; }
+      }
     }
+    var td = $('tbl').querySelector('td[data-r="' + m.r + '"][data-c="' + m.c + '"]');
+    if (td) selectCell(td);
     $('findCount').textContent = (mIdx + 1) + ' / ' + matches.length;
     $('findCount').className = 'cnt';
   }
@@ -3185,14 +3034,29 @@
   });
   $('vHex').addEventListener('keydown', hexKeyDown);
 
+  var hlTimer = null;
   editor.addEventListener('input', function(){
     if (!cur) return;
     cur.content = editor.value;
     markDirty(cur, editor.value !== cur.saved);
     updateStatus();
     if ($('findbar').classList.contains('on')) runFind();
+    /* 高亮防抖，避免每敲一个键就重扫全文 */
+    if (hlTimer) clearTimeout(hlTimer);
+    hlTimer = setTimeout(function(){ refreshCodeDecor(cur); }, 400);
   });
   editor.addEventListener('keyup', updateStatus);
+  $('stEnc').addEventListener('click', function(){
+    if (!cur || cur.kind !== 'text' || !cur.path) return;
+    var now = (cur.saveEnc || guessEnc(cur.enc));
+    var next = (now === 'gbk') ? 'utf8' : 'gbk';
+    cur.saveEnc = next;
+    updateStatus();
+  });
+
+  function guessEnc(detected){
+    return (String(detected || '').toUpperCase().indexOf('GB') >= 0) ? 'gbk' : 'utf8';
+  }
   editor.addEventListener('click', updateStatus);
   document.addEventListener('selectionchange', function(){
     if (document.activeElement === editor) updateStatus();
@@ -3213,7 +3077,7 @@
       var act = sb.getAttribute('data-set');
       if (act === 'close'){ applySettingsFromUI(); $('setMask').classList.remove('on'); }
       else if (act === 'reset'){
-        settings = { restoreSession: true, backup: true, maxRows: 2000 };
+        settings = { restoreSession: true, backup: true, maxRows: 50000, lineNumbers: true, syntax: true };
         saveSettings(); openSettings();
       }
       return;

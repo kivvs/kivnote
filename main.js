@@ -6,6 +6,7 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { execFile, execSync } = require('child_process');
 const crypto = require('crypto');
+const iconv = require('iconv-lite');
 const os = require('os');
 let AdmZip = null;
 try { AdmZip = require('adm-zip'); } catch (e) { console.error('adm-zip load failed', e.message); }
@@ -356,6 +357,31 @@ function createWindow(openPath) {
             );
             console.log('[FIND] ' + r);
           }
+          if (process.argv.includes('--vscroll-test')) {
+            const r1 = await win.webContents.executeJavaScript(
+              "JSON.stringify({dom: document.querySelectorAll('#tblBody tr:not(.vspacer)').length, spacers: document.querySelectorAll('#tblBody tr.vspacer').length})"
+            );
+            console.log('[VSCROLL-初始] ' + r1);
+            await win.webContents.executeJavaScript(
+              "(function(){var sc=document.querySelector('.tbl-scroll');sc.scrollTop=20000;sc.dispatchEvent(new Event('scroll'));return 1;})()"
+            );
+            await new Promise(r => setTimeout(r, 600));
+            const r2 = await win.webContents.executeJavaScript(
+              "JSON.stringify({dom: document.querySelectorAll('#tblBody tr:not(.vspacer)').length, firstRow: (document.querySelector('#tblBody tr:not(.vspacer) td.rn')||{}).textContent})"
+            );
+            console.log('[VSCROLL-滚动后] ' + r2);
+          }
+          if (process.argv.includes('--hl-test')) {
+            const r = await win.webContents.executeJavaScript(
+              "JSON.stringify(function(){try{" +
+              "var w=document.getElementById('wrap');var st=(typeof settings!=='undefined')?settings:null;" +
+              "return {cls:w.className, ln:st?st.lineNumbers:'NO_SETTINGS', syn:st?st.syntax:'-', " +
+              "lang: (typeof langOf==='function')?langOf('sample.js'):'NO_FN', " +
+              "gutter: document.getElementById('gutter')?document.getElementById('gutter').innerHTML.length:-1, " +
+              "hl: document.getElementById('hlLayer')?document.getElementById('hlLayer').innerHTML.length:-1};}catch(e){return {err:e.message};}}())"
+            );
+            console.log('[HL] ' + r);
+          }
           if (process.argv.includes('--ppt-all')) {
             await win.webContents.executeJavaScript("document.querySelector('[data-ppt=\"all\"]').dispatchEvent(new MouseEvent('click', {bubbles:true}))");
             await new Promise(r => setTimeout(r, 600));
@@ -488,10 +514,16 @@ ipcMain.handle('file:writeBase64', async (e, { path: p, data }) => {
   } catch (err) { return { error: '保存失败：' + err.message }; }
 });
 
-ipcMain.handle('file:save', async (e, { path: p, content }) => {
+ipcMain.handle('file:save', async (e, { path: p, content, enc }) => {
   try {
-    await fs.promises.writeFile(p, content, 'utf8');
-    return { ok: true, size: Buffer.byteLength(content, 'utf8') };
+    let buf;
+    if (enc && enc !== 'utf8' && iconv.encodingExists(enc)){
+      buf = iconv.encode(content, enc);
+    } else {
+      buf = Buffer.from(content, 'utf8');
+    }
+    await fs.promises.writeFile(p, buf);
+    return { ok: true, size: buf.length, enc: enc || 'utf8' };
   } catch (err) { return { error: '保存失败：' + err.message }; }
 });
 

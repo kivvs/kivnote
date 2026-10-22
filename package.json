@@ -1,7 +1,7 @@
 {
   "name": "kivnote",
   "productName": "KivNote",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "深色 macOS 风格的多功能记事本：文本、表格、Word、PPT、PDF、二进制，一个窗口全看",
   "main": "main.js",
   "author": {
@@ -34,10 +34,12 @@
     "fetch:loffice": "python scripts/fetch-loffice.py",
     "dist": "electron-builder --win portable",
     "dist:dir": "electron-builder --win --dir",
-    "pack": "python scripts/make-zip.py"
+    "pack": "python scripts/make-zip.py",
+    "test": "node tests/run-tests.js"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
+    "iconv-lite": "^0.7.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "3.11.174",
     "xlsx": "^0.18.5"
@@ -62,7 +64,8 @@
       "node_modules/adm-zip/adm-zip.js",
       "node_modules/adm-zip/util/**",
       "node_modules/adm-zip/headers/**",
-      "node_modules/adm-zip/methods/**"
+      "node_modules/adm-zip/methods/**",
+      "node_modules/iconv-lite/**"
     ],
     "extraResources": [
       {
