@@ -140,7 +140,7 @@
   .stage{display:none;width:100%;height:100%;align-items:center;justify-content:center;overflow:auto}
   .editor-wrap.is-view .stage{display:flex}
   .stage > *{display:none}
-  #vImg{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;
+  #vImg{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;cursor:zoom-in;
     box-shadow:0 10px 40px -10px rgba(0,0,0,.8);-webkit-user-drag:none}
   #vVideo{max-width:100%;max-height:100%;border-radius:4px;background:#000}
   #vAudio{width:440px;max-width:100%}
@@ -259,6 +259,7 @@
     box-shadow:0 16px 50px -14px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.06);
   }
   .sl-bg{position:absolute;inset:0}
+  #vImg.img-orig{max-width:none;max-height:none;cursor:zoom-out}
   .slide-img{
     display:block;max-width:100%;border-radius:3px;background:#fff;
     box-shadow:0 16px 50px -14px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.06);
@@ -401,6 +402,10 @@
   .menu button:disabled:hover{background:transparent;color:#bdbdbd}
   .menu button .k{color:#6b6b6b;font-size:11px}
   .menu .mline{height:1px;background:#343434;margin:4px 6px}
+  #menuRecent button{max-width:240px;padding:5px 12px}
+  .rc-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:var(--mono);font-size:11.5px;color:#9a9a9a}
+  #menuRecent button:hover .rc-name{color:#e8e8e8}
 
   /* ═════ 关于 ═════ */
   .about-mask{
@@ -721,6 +726,7 @@
   </div>
 
   <div class="menu" id="menu">
+    <div id="menuRecent"></div>
     <button data-cmd="saveAs" id="miSaveAs"><span>另存为…</span><span class="k">Ctrl+Shift+S</span></button>
     <button data-cmd="saveHex" id="miSaveHex"><span>保存字节修改</span><span class="k">Ctrl+S</span></button>
     <div class="mline"></div>
@@ -900,6 +906,13 @@
     if (!t.raw.bytes.length && !t.raw.eof) loadMore(t);
     else renderRawMore(t);
     updateStatus();
+  }
+
+  /* 图片：点击在「适应窗口 / 原始大小」之间切换 */
+  function toggleImgZoom(){
+    var img = $('vImg');
+    if (!img) return;
+    img.classList.toggle('img-orig');
   }
 
   function renderNormal(t){
@@ -1332,6 +1345,8 @@
     applyUndoItem(t, item, false);
     (t.undo = t.undo || []).push(item);
   }
+
+  $('vImg').addEventListener('click', toggleImgZoom);
 
   /* ═════════ 通用输入框 ═════════ */
   var askCb = null;
@@ -2487,6 +2502,7 @@
 
   function acceptDoc(doc){
     if (!doc) return;
+    if (doc.path && !doc.error) pushRecent(doc.path);
     if (doc.error){ addTab(doc); return; }
     if (!doc.__converted && (doc.kind === 'doc' || doc.kind === 'xls' || doc.kind === 'ppt' || doc.kind === 'pptx')){
       convertThenOpen(doc);
@@ -2644,11 +2660,96 @@
     }
   }
 
+  /* ═════ 最近打开的文件 ═════ */
+  var RECENT_KEY = 'notepad.recent.v1';
+  function getRecent(){
+    try {
+      var raw = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+      return Array.isArray(raw) ? raw : [];
+    } catch (e) { return []; }
+  }
+  function pushRecent(path){
+    if (!path) return;
+    try {
+      var list = getRecent().filter(function(p){ return p !== path; });
+      list.unshift(path);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8)));
+    } catch (e) {}
+  }
+  function renderRecentMenu(){
+    var box = $('menuRecent');
+    if (!box) return;
+    var list = getRecent();
+    if (!list.length){ box.innerHTML = ''; return; }
+    var html = '';
+    for (var i = 0; i < list.length; i++){
+      var p = list[i];
+      var name = String(p).split(/[\\/]/).pop();
+      html += '<button data-recent="' + esc(p) + '" title="' + esc(p) + '">' +
+              '<span class="rc-name">' + esc(name) + '</span></button>';
+    }
+    html += '<div class="mline"></div>';
+    box.innerHTML = html;
+  }
+
   function runFind(){
     if (!cur) return;
     if (cur.viewMode === 'hex'){ runFindHex(); return; }
     if (cur.kind === 'table' && cur.sheets){ runFindTable(); return; }
+    if (cur.kind === 'pdf' && cur.pdfDoc){ runFindPdf(); return; }
     runFindText();
+  }
+
+  /* PDF 查找：逐页取文本再匹配 */
+  function runFindPdf(){
+    var t = cur, q = $('findInput').value;
+    var cntEl = $('findCount');
+    matches = []; mIdx = -1;
+    if (!q){ cntEl.textContent = '0 / 0'; cntEl.className = 'cnt'; return; }
+    if (!t.pdfTexts) t.pdfTexts = {};
+    var needle = q.toLowerCase();
+    var total = t.pdfDoc.numPages;
+
+    var finish = function(){
+      if (!matches.length){
+        cntEl.textContent = '0 / 0';
+        cntEl.className = 'cnt none';
+        return;
+      }
+      cntEl.className = 'cnt';
+      jumpPdfTo(0);
+    };
+
+    var scanPage = function(i){
+      var txt = t.pdfTexts[i] || '';
+      var low = txt.toLowerCase(), idx = 0;
+      while ((idx = low.indexOf(needle, idx)) >= 0){ matches.push(i); idx += needle.length; }
+      scan(i + 1);
+    };
+
+    function scan(i){
+      if (i > total){ finish(); return; }
+      if (t.pdfTexts[i] === undefined){
+        t.pdfDoc.getPage(i).then(function(page){
+          return page.getTextContent().then(function(tc){
+            pdfCacheText(t, i, tc);
+            scanPage(i);
+          });
+        }).catch(function(){ scan(i + 1); });
+      } else {
+        scanPage(i);
+      }
+    }
+    scan(1);
+  }
+
+  function jumpPdfTo(idx){
+    if (!matches.length) return;
+    mIdx = (idx + matches.length) % matches.length;
+    cur.pdfPage = matches[mIdx];
+    paintPdfPage(cur);
+    $('findCount').textContent = (mIdx + 1) + ' / ' + matches.length;
+    $('findCount').className = 'cnt';
   }
 
   /* hex 视图搜索：hex 序列或 ASCII */
@@ -2774,6 +2875,7 @@
     if (!matches.length){ runFind(); return; }
     if (cur && cur.viewMode === 'hex'){ jumpHexTo(mIdx + d); return; }
     if (cur && cur.kind === 'table'){ jumpTableTo(mIdx + d); return; }
+    if (cur && cur.kind === 'pdf'){ jumpPdfTo(mIdx + d); return; }
     jumpTo(mIdx + d);
   }
 
@@ -2843,7 +2945,10 @@
         break;
       case 'redo':  doRedo(); break;
       case 'newWindow': if (native) native.newWindow(cur && cur.path ? cur.path : null); break;
-      case 'menu':  $('menu').classList.toggle('on'); break;
+      case 'menu':
+        if (!$('menu').classList.contains('on')) renderRecentMenu();
+        $('menu').classList.toggle('on');
+        break;
       case 'wrap':  toggleWrap(); break;
       case 'zoomIn':setZoom(zoom + 10); break;
       case 'zoomOut':setZoom(zoom - 10); break;
@@ -2885,6 +2990,14 @@
 
   document.addEventListener('click', function(e){
     if (e.target.closest('[data-close]') || e.target.closest('[data-tab]')) return;
+
+    var rcBtn = e.target.closest('[data-recent]');
+    if (rcBtn){
+      var rp = rcBtn.getAttribute('data-recent');
+      hideMenu();
+      if (native) native.openPath(rp).then(acceptDoc);
+      return;
+    }
 
     var pptBtn = e.target.closest('[data-ppt]');
     if (pptBtn){ pptNav(pptBtn.getAttribute('data-ppt')); return; }

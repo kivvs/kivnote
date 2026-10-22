@@ -1,7 +1,7 @@
 {
   "name": "kivnote",
   "productName": "KivNote",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "深色 macOS 风格的多功能记事本：文本、表格、Word、PPT、PDF、二进制，一个窗口全看",
   "main": "main.js",
   "author": {

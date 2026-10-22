@@ -336,6 +336,22 @@ function createWindow(openPath) {
             );
             console.log('[XLSX] ' + JSON.stringify(r));
           }
+          if (process.argv.includes('--find-test')) {
+            await win.webContents.executeJavaScript(
+              "(function(){document.querySelector('[data-cmd=\\\"menu\\\"]').click();" +
+              "document.querySelector('[data-cmd=\\\"menu\\\"]').click();" +
+              "document.querySelector('[data-cmd=\\\"find\\\"]').click();" +
+              "var i=document.getElementById('findInput');i.value='Hello';" +
+              "i.dispatchEvent(new Event('input'));return 1;})()"
+            );
+            await new Promise(r => setTimeout(r, 2500));
+            const r = await win.webContents.executeJavaScript(
+              "JSON.stringify({count: document.getElementById('findCount').textContent, " +
+              "recent: document.querySelectorAll('#menuRecent button').length, " +
+              "recentCached: JSON.parse(localStorage.getItem('notepad.recent.v1')||'[]').length})"
+            );
+            console.log('[FIND] ' + r);
+          }
           if (process.argv.includes('--ppt-all')) {
             await win.webContents.executeJavaScript("document.querySelector('[data-ppt=\"all\"]').dispatchEvent(new MouseEvent('click', {bubbles:true}))");
             await new Promise(r => setTimeout(r, 600));
