@@ -40,3 +40,9 @@ v_final.png
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 本地 agent 工作区（非项目源码，含记忆/缓存，勿入库）
+.workbuddy/
+
+# Windows 保留名残留文件（venv 安装失败产生，非源码）
+/nul

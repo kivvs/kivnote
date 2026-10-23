@@ -199,6 +199,15 @@
     display:flex;justify-content:center;align-items:flex-start;padding:14px;
     scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
   }
+  /* 连排模式：改为纵向块流，多页才能依次往下排而不是横着挤 */
+  .pdf-scroll.cont{
+    display:block;
+    padding:14px 14px 14px;
+  }
+  .pdf-scroll.cont > .pdf-page-cont{
+    display:block;
+    margin-left:auto;margin-right:auto;
+  }
   .pdf-scroll::-webkit-scrollbar{width:11px;height:11px}
   .pdf-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #262626}
   .pdf-scroll canvas{
@@ -207,6 +216,22 @@
     border-radius:2px;
   }
   .pdf-page{position:relative;margin:0 auto}
+  /* 连排模式：每页一个占位块，纵向依次排开，页与页之间留缝 */
+  .pdf-page-cont{
+    margin:0 auto 12px;
+    background:#fff;
+    box-shadow:0 10px 36px -8px rgba(0,0,0,.75);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .pdf-page-cont canvas{display:block;background:#fff;box-shadow:none;border-radius:0}
+  .pdf-page-no{
+    position:absolute;right:6px;bottom:4px;z-index:3;
+    color:#8a8a8a;font-family:var(--mono);font-size:10px;
+    background:rgba(0,0,0,.35);border-radius:3px;padding:1px 5px;
+    pointer-events:none;
+  }
+  .pdf-bar button.on{background:#333;color:var(--green);border-color:#4a4a4a}
   .textLayer{
     position:absolute;left:0;top:0;right:0;bottom:0;
     overflow:hidden;line-height:1;opacity:1;
@@ -372,7 +397,11 @@
   .tbl-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #1a1a1a}
   #tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;font-family:var(--mono);
     white-space:nowrap;user-select:text;table-layout:fixed}
-  #tbl th,#tbl td{border-right:1px solid #2b2b2b;border-bottom:1px solid #2b2b2b;padding:4px 10px;text-align:left}
+  /* table-layout:fixed 下 <col> 的 width 指定的是【内容盒】宽度，
+     单元格 padding 会额外加上去 —— 实际渲染比 col 声明的宽，
+     于是浏览器会按「最宽的那格」再撑一次，滚动到长文本行就变宽。
+     改用 border-box 让 col 宽度就是最终占位宽，彻底锁死。 */
+  #tbl th,#tbl td{box-sizing:border-box;border-right:1px solid #2b2b2b;border-bottom:1px solid #2b2b2b;padding:4px 10px;text-align:left}
   #tbl thead th{position:sticky;top:0;background:#282828;color:#a8a8a8;font-weight:normal;z-index:2;
     overflow:hidden;text-overflow:ellipsis}
   #tbl thead th .col-rz{
@@ -385,8 +414,11 @@
   #tbl thead .rn{z-index:3}
   #tbl tbody tr:hover td{background:#262626}
   #tbl tbody tr:hover .rn{background:#2c2c2c}
-  #tbl td{color:#c9c9c9;min-width:52px;max-width:420px;overflow:hidden;text-overflow:ellipsis}
-  #tbl tbody td{height:23px;padding:0 10px;line-height:23px;white-space:nowrap}
+  #tbl td{color:#c9c9c9;overflow:hidden;text-overflow:ellipsis}
+  /* 注意：td 上不能设 min-width。
+     table-layout:fixed 下，单元格 min-width 仍会把列顶宽 —— 滚动到长文本行时
+     列宽会突然变大，表现就是「表格越滚越宽」。列宽一律由 <colgroup> 决定。 */
+  #tbl tbody td{height:23px;padding:0 10px;line-height:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #tbl tbody tr.vspacer{height:auto}
   #tbl tbody tr.vspacer td{height:auto;padding:0;border:none;background:none}
   #tbl td.num{text-align:right;color:#a9c08d}

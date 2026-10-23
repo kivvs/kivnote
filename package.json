@@ -35,7 +35,7 @@
     "dist": "electron-builder --win portable",
     "dist:dir": "electron-builder --win --dir",
     "pack": "python scripts/make-zip.py",
-    "test": "node tests/run-tests.js"
+    "test": "node tests/run-tests.js && node tests/tauri-shim.test.js && node tests/frontend-regressions.test.js"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

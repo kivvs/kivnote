@@ -1,0 +1,3 @@
+# Rust / Tauri 构建产物
+/target
+/gen

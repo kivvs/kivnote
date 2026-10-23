@@ -4,15 +4,659 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>记事本</title>
-<link rel="stylesheet" href="style.css">
+<style>
+/* 注意：此样式块由 style.css 内联得到，修改样式请改 style.css 后重新内联 */
+  :root{
+    --bg:#1e1e1e; --bar:#2a2a2a; --bar-2:#242424; --nav:#212121;
+    --fg:#c9c9c9; --title:#a8a8a8; --dot:#565656;
+    --green:#93a86b; --cyan:#5fb4b4; --orange:#dc9a6a;
+    --mono:"Cascadia Mono","Cascadia Code",Consolas,"Microsoft YaHei UI","PingFang SC",monospace;
+    --doc-size:15px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg);font-family:var(--mono);color:var(--fg);
+    overflow:hidden;user-select:none;-webkit-font-smoothing:antialiased;
+  }
+  .win{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+
+  /* ═════ 标题栏 ═════ */
+  .titlebar{
+    flex:0 0 44px;display:flex;align-items:center;padding:0 14px 0 20px;
+    background:var(--bar);box-shadow:inset 0 -1px 0 rgba(0,0,0,.35);
+    -webkit-app-region:drag;position:relative;z-index:7;
+  }
+  .dots{display:flex;gap:8px;flex:0 0 auto;-webkit-app-region:no-drag}
+  .dot{width:11px;height:11px;border-radius:50%;background:var(--dot);transition:background .15s}
+  .dots:hover .dot{background:#6d6d6d}
+  .dots:hover .dot:nth-child(1){background:#e0655a}
+  .dots:hover .dot:nth-child(2){background:#dfa94f}
+  .dots:hover .dot:nth-child(3){background:#65b06a}
+
+  .title{
+    margin-left:28px;font-size:14px;color:var(--title);letter-spacing:.2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;
+  }
+  .title .muted{color:#6f6f6f}
+  .title .dirty{color:var(--orange)}
+
+  .wctrl{
+    margin-left:auto;display:flex;align-items:center;gap:9px;
+    padding-left:16px;margin-right:2px;-webkit-app-region:no-drag;
+  }
+  .wdot{width:11px;height:11px;border-radius:50%;cursor:default;
+    transition:transform .14s ease,box-shadow .14s ease,filter .14s}
+  .wdot.min{background:#dfa94f}
+  .wdot.max{background:#65b06a}
+  .wdot.close{background:#e0655a}
+  .wdot:hover{transform:scale(1.22);box-shadow:0 0 0 4px rgba(255,255,255,.07);filter:brightness(1.12)}
+  .wdot:active{transform:scale(.94);filter:brightness(.85)}
+
+  /* ═════ 导航栏 ═════ */
+  .navbar{
+    flex:0 0 42px;display:flex;align-items:center;gap:3px;
+    padding:0 12px 0 16px;background:var(--nav);
+    box-shadow:inset 0 -1px 0 rgba(0,0,0,.45);
+    -webkit-app-region:drag;position:relative;z-index:6;
+  }
+  .navbar > *{-webkit-app-region:no-drag}
+
+  .nb{
+    height:27px;padding:0 8px;display:flex;align-items:center;gap:6px;
+    background:transparent;border:1px solid transparent;border-radius:6px;
+    color:#9c9c9c;font-family:var(--mono);font-size:12px;cursor:pointer;
+    transition:background .12s,color .12s;flex:0 0 auto;
+  }
+  .nb:hover{background:#313131;color:#e2e2e2}
+  .nb:active{background:#3a3a3a}
+  .nb:disabled{opacity:.32;cursor:default}
+  .nb:disabled:hover{background:transparent;color:#9c9c9c}
+  .nb svg{width:14px;height:14px;stroke:currentColor;fill:none;
+    stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .nb-sep{width:1px;height:16px;background:#3a3a3a;margin:0 6px;flex:0 0 auto}
+
+  .seg{display:flex;align-items:center;gap:2px;background:#191919;
+    border:1px solid #333;border-radius:7px;padding:2px;flex:0 0 auto}
+  .seg button{
+    height:22px;padding:0 11px;border:0;border-radius:5px;background:transparent;
+    color:#828282;font-family:var(--mono);font-size:11.5px;cursor:pointer;
+    white-space:nowrap;transition:background .12s,color .12s;
+  }
+  .seg button:hover:not(.on):not(:disabled){color:#cfcfcf;background:#2c2c2c}
+  .seg button.on{background:#3a3a3a;color:var(--green)}
+  .seg button:disabled{opacity:.3;cursor:default}
+
+  /* ═════ 标签条 ═════ */
+  .tabs{
+    flex:1 1 auto;display:flex;align-items:center;gap:2px;
+    margin:0 6px;min-width:0;overflow-x:auto;overflow-y:hidden;
+    scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{height:0}
+  .tab{
+    height:26px;display:flex;align-items:center;gap:5px;
+    padding:0 5px 0 10px;border-radius:6px;
+    background:transparent;color:#8a8a8a;font-size:12px;
+    max-width:172px;min-width:76px;flex:1 1 auto;cursor:pointer;
+    transition:background .12s,color .12s;
+  }
+  .tab:hover{background:#2c2c2c;color:#c8c8c8}
+  .tab.on{background:#3a3a3a;color:#e8e8e8}
+  .tab .t-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
+  .tab .t-dot{color:var(--orange);font-size:11px;flex:0 0 auto}
+  .tab .t-x{
+    flex:0 0 auto;width:16px;height:16px;line-height:15px;text-align:center;
+    border-radius:4px;font-size:13px;color:#9a9a9a;opacity:.55;
+  }
+  .tab .t-x:hover{opacity:1;background:#4c4c4c;color:#fff}
+  .tab-add{
+    flex:0 0 auto;width:26px;height:26px;margin-left:2px;
+    display:flex;align-items:center;justify-content:center;
+    background:transparent;border:0;border-radius:6px;
+    color:#8a8a8a;font-size:16px;cursor:pointer;font-family:var(--mono);
+  }
+  .tab-add:hover{background:#313131;color:#e0e0e0}
+
+  /* ═════ 绿线 ═════ */
+  .rule{flex:0 0 auto;height:1px;width:632px;max-width:calc(100% - 56px);
+    margin:0 28px;background:var(--green);opacity:.8}
+
+  /* ═════ 内容区 ═════ */
+  .editor-wrap{flex:1 1 auto;min-height:0;padding:16px 28px;overflow:hidden;position:relative}
+  #editor{
+    display:none;width:100%;height:100%;margin:0;padding:0;border:0;outline:none;resize:none;
+    background:transparent;color:var(--fg);
+    font-family:var(--mono);font-size:var(--doc-size);line-height:1.73;
+    caret-color:var(--cyan);tab-size:4;overflow:auto;white-space:pre;
+    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;user-select:text;
+  }
+  .editor-wrap.is-text #editor{display:block}
+  /* 行号栏 */
+  .gutter{
+    display:none;position:absolute;left:0;top:0;bottom:0;width:46px;
+    overflow:hidden;background:#1b1b1b;border-right:1px solid #2b2b2b;
+    font-family:var(--mono);font-size:var(--doc-size);line-height:1.73;
+    color:#5e6e58;text-align:right;user-select:none;z-index:2;
+    padding-top:0;pointer-events:none;
+  }
+  .gutter span{display:block;padding-right:8px;white-space:nowrap}
+  .editor-wrap.is-text.show-gutter .gutter{display:block}
+  .editor-wrap.is-text.show-gutter #editor{padding-left:56px}
+  /* 语法高亮层：垫在 textarea 下面 */
+  .hl-layer{
+    display:none;position:absolute;left:0;right:0;top:0;bottom:0;margin:0;
+    font-family:var(--mono);font-size:var(--doc-size);line-height:1.73;
+    white-space:pre;overflow:hidden;pointer-events:none;z-index:0;
+    color:var(--fg);tab-size:4;
+  }
+  .editor-wrap.is-text.hl-on .hl-layer{display:block}
+  .editor-wrap.is-text.hl-on #editor{color:transparent;caret-color:var(--cyan);background:transparent}
+  .editor-wrap.is-text.hl-on.show-gutter .hl-layer{padding-left:56px}
+  .hl-layer .t-str{color:#c3a86b}
+  .hl-layer .t-com{color:#6b7a72;font-style:italic}
+  .hl-layer .t-kw{color:#7fa8d4}
+  .hl-layer .t-num{color:#a9c08d}
+  .hl-layer .t-fn{color:#b294d4}
+  #editor.wrap-on{white-space:pre-wrap;overflow-wrap:anywhere}
+  #editor::placeholder{color:#5a5a5a}
+  #editor::selection{background:#2f5d5d;color:#eaf6f6}
+  #editor::-webkit-scrollbar{width:11px;height:11px}
+  #editor::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
+
+  .stage{display:none;width:100%;height:100%;align-items:center;justify-content:center;overflow:auto}
+  .editor-wrap.is-view .stage{display:flex}
+  .stage > *{display:none}
+  #vImg{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;cursor:zoom-in;
+    box-shadow:0 10px 40px -10px rgba(0,0,0,.8);-webkit-user-drag:none}
+  #vVideo{max-width:100%;max-height:100%;border-radius:4px;background:#000}
+  #vAudio{width:440px;max-width:100%}
+  #vPdf{width:100%;height:100%;display:none;flex-direction:column;align-self:stretch;min-height:0}
+  .pdf-thumbs{
+    display:none;flex:0 0 104px;overflow-y:auto;overflow-x:hidden;
+    border-bottom:1px solid #2b2b2b;background:#1d1d1d;padding:8px 6px;
+    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
+  }
+  .pdf-thumbs.on{display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px}
+  .pdf-thumbs .thumb{
+    width:70px;cursor:pointer;text-align:center;
+    border:2px solid transparent;border-radius:4px;padding:2px;
+  }
+  .pdf-thumbs .thumb:hover{background:#262626}
+  .pdf-thumbs .thumb.cur{border-color:#4d7f7f;background:#25302e}
+  .pdf-thumbs .thumb canvas{width:60px;background:#fff;border-radius:2px;display:block;margin:0 auto}
+  .pdf-thumbs .thumb .pn{font-size:10px;color:#6b7a72;margin-top:2px;font-family:var(--mono)}
+  .pdf-thumbs .thumb.cur .pn{color:#8fb5b5}
+  .pdf-bar{flex:0 0 auto;display:flex;align-items:center;gap:4px;padding-bottom:9px}
+  .pdf-bar button{
+    height:24px;min-width:26px;padding:0 8px;
+    background:#1a1a1a;border:1px solid #333;border-radius:5px;
+    color:#9a9a9a;font-family:var(--mono);font-size:11.5px;cursor:pointer;
+  }
+  .pdf-bar button:hover{background:#2c2c2c;color:#e0e0e0;border-color:#444}
+  .pdf-bar button:disabled{opacity:.3;cursor:default}
+  .pdf-ind{
+    color:var(--green);font-size:11.5px;min-width:52px;text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .pdf-sep2{width:1px;height:14px;background:#333;margin:0 4px}
+  .pdf-sp{margin-left:auto}
+  .pdf-scroll{
+    flex:1 1 auto;overflow:auto;min-height:0;
+    background:#262626;border:1px solid #2e2e2e;border-radius:6px;
+    display:flex;justify-content:center;align-items:flex-start;padding:14px;
+    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
+  }
+  /* 连排模式：改为纵向块流，多页才能依次往下排而不是横着挤 */
+  .pdf-scroll.cont{
+    display:block;
+    padding:14px 14px 14px;
+  }
+  .pdf-scroll.cont > .pdf-page-cont{
+    display:block;
+    margin-left:auto;margin-right:auto;
+  }
+  .pdf-scroll::-webkit-scrollbar{width:11px;height:11px}
+  .pdf-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #262626}
+  .pdf-scroll canvas{
+    display:block;background:#fff;
+    box-shadow:0 10px 36px -8px rgba(0,0,0,.75);
+    border-radius:2px;
+  }
+  .pdf-page{position:relative;margin:0 auto}
+  /* 连排模式：每页一个占位块，纵向依次排开，页与页之间留缝 */
+  .pdf-page-cont{
+    margin:0 auto 12px;
+    background:#fff;
+    box-shadow:0 10px 36px -8px rgba(0,0,0,.75);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .pdf-page-cont canvas{display:block;background:#fff;box-shadow:none;border-radius:0}
+  .pdf-page-no{
+    position:absolute;right:6px;bottom:4px;z-index:3;
+    color:#8a8a8a;font-family:var(--mono);font-size:10px;
+    background:rgba(0,0,0,.35);border-radius:3px;padding:1px 5px;
+    pointer-events:none;
+  }
+  .pdf-bar button.on{background:#333;color:var(--green);border-color:#4a4a4a}
+  .textLayer{
+    position:absolute;left:0;top:0;right:0;bottom:0;
+    overflow:hidden;line-height:1;opacity:1;
+    text-align:initial;forced-color-adjust:none;
+    transform-origin:0 0;
+  }
+  .textLayer span,.textLayer br{
+    color:transparent;position:absolute;white-space:pre;
+    cursor:text;transform-origin:0% 0%;unicode-bidi:isolate;
+    z-index:0;
+  }
+  .textLayer span.markedContent{top:0;height:0}
+  .textLayer ::selection{background:rgba(0,120,255,.28)}
+  .textLayer ::-moz-selection{background:rgba(0,120,255,.28)}
+  .textLayer br{display:block}
+  .pdf-msg{color:#7a8a80;font-size:13px;padding:40px;text-align:center}
+
+  /* hex 编辑视图 */
+  #vHex{
+    margin:0;width:100%;height:100%;align-self:flex-start;overflow:auto;
+    font-family:var(--mono);font-size:13px;line-height:20px;
+    color:#8f9f97;outline:none;cursor:text;
+    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
+  }
+  #vHex::-webkit-scrollbar{width:11px;height:11px}
+  #vHex::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
+  .hline{white-space:pre}
+  .hline:hover{background:rgba(255,255,255,.018)}
+  .h-off{color:#5c6b62}
+  .h-hex{color:#9aae9f}
+  .h-asc{color:var(--green)}
+  .by{display:inline-block;width:2ch;text-align:left;border-radius:2px}
+  .by i{font-style:normal}
+  .hline .blk{
+    display:inline-block;width:3px;height:18px;vertical-align:-3px;
+    margin-right:7px;border-radius:1px;opacity:.85;
+  }
+  .by.pad{opacity:0}
+  .by.edited i{color:var(--orange)}
+  .by.cur{background:#2f5d5d;box-shadow:inset 0 0 0 1px #5fb4b4}
+  .by.cur i{color:#eaf6f6}
+
+  /* 二进制视图 */
+  #vBin{
+    margin:0;width:100%;height:100%;align-self:flex-start;overflow:auto;
+    font-family:var(--mono);font-size:13px;line-height:20px;
+    color:#8f9f97;user-select:text;
+    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
+  }
+  #vBin::-webkit-scrollbar{width:11px;height:11px}
+  #vBin::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
+  #vBin .h-off{color:#5c6b62}
+  #vBin em{color:var(--green);font-style:normal}
+  #vBin i{color:#54655c;font-style:normal}
+  #vBin .h-asc{color:var(--green)}
+
+  .v-note{flex-direction:column;gap:16px;color:#8f9f97;font-size:13px;text-align:center;line-height:1.9}
+  .v-note .big{font-size:15px;color:var(--green)}
+  .v-note .sm{font-size:12px;color:#6b7a72}
+  .v-note button{background:#2c2c2c;border:1px solid #3a3a3a;border-radius:6px;
+    color:#c0c0c0;font-family:var(--mono);font-size:12px;padding:7px 16px;cursor:pointer}
+  .v-note button:hover{background:#3a3a3a;color:#eee}
+
+  /* ═════ PPT 视图 ═════ */
+  #vPpt{width:100%;height:100%;display:none;flex-direction:column;align-self:stretch;min-height:0}
+  .ppt-bar{flex:0 0 auto;display:flex;align-items:center;gap:4px;padding-bottom:9px}
+  .ppt-bar button{
+    height:24px;min-width:26px;padding:0 9px;
+    background:#1a1a1a;border:1px solid #333;border-radius:5px;
+    color:#9a9a9a;font-family:var(--mono);font-size:11.5px;cursor:pointer;
+  }
+  .ppt-bar button:hover{background:#2c2c2c;color:#e0e0e0;border-color:#444}
+  .ppt-ind{color:var(--green);font-size:11.5px;min-width:96px;text-align:center;font-variant-numeric:tabular-nums}
+  .ppt-scroll{
+    flex:1 1 auto;overflow:auto;min-height:0;
+    background:#262626;border:1px solid #2e2e2e;border-radius:6px;
+    padding:16px;scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
+  }
+  .ppt-scroll::-webkit-scrollbar{width:11px;height:11px}
+  .ppt-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #262626}
+  .slide-wrap{margin:0 auto 18px;width:fit-content}
+  .slide-stage{
+    position:relative;background:#fff;overflow:hidden;border-radius:3px;
+    box-shadow:0 16px 50px -14px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .sl-bg{position:absolute;inset:0}
+  #vImg.img-orig{max-width:none;max-height:none;cursor:zoom-out}
+  .slide-img{
+    display:block;max-width:100%;border-radius:3px;background:#fff;
+    box-shadow:0 16px 50px -14px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .sl-sp{
+    position:absolute;box-sizing:border-box;overflow:hidden;
+    color:#1a1a1a;line-height:1.32;
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+    word-break:break-word;
+  }
+  .sl-img{position:absolute;object-fit:contain}
+  .sl-shape{position:absolute}
+  .sl-tbl{border-collapse:collapse;width:100%;font-size:12px;color:#1a1a1a}
+  .sl-tbl td{border:1px solid #999;padding:2px 5px}
+  .sl-fallback{position:absolute;inset:0;padding:32px 40px;color:#1a1a1a;overflow:auto;
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.9}
+  .sl-fallback p{margin:0 0 6px}
+  .slide-no{
+    display:block;width:max-content;font-size:11px;color:#6b7a72;
+    border:1px solid #3a3a3a;border-radius:4px;padding:0 7px;margin-bottom:14px;
+  }
+
+  .sl-empty{color:#6b7a72;font-size:13px;padding:20px 0}
+
+  /* ═════ Word 文档视图 ═════ */
+  #vDoc{
+    width:100%;height:100%;align-self:flex-start;overflow:auto;
+    font-size:14px;line-height:1.95;color:#cfcfcf;
+    padding-right:18px;user-select:text;
+    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;
+  }
+  #vDoc::-webkit-scrollbar{width:11px;height:11px}
+  #vDoc::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid var(--bg)}
+  #vDoc h1{font-size:21px;color:#ececec;margin:26px 0 12px;font-weight:600;line-height:1.5}
+  #vDoc h2{font-size:18px;color:#e2e2e2;margin:22px 0 10px;font-weight:600;line-height:1.5}
+  #vDoc h3{font-size:16px;color:#dadada;margin:18px 0 8px;font-weight:600;line-height:1.5}
+  #vDoc h4,#vDoc h5,#vDoc h6{font-size:14.5px;color:#c8c8c8;margin:14px 0 6px;font-weight:600}
+  #vDoc h1:first-child,#vDoc h2:first-child{margin-top:4px}
+  #vDoc p{margin:0 0 9px}
+  #vDoc b,#vDoc strong{color:#f0f0f0}
+  #vDoc i,#vDoc em{color:#bfcfc4}
+  #vDoc u{text-decoration-color:#6f8f6a}
+  #vDoc s,#vDoc del{color:#7a7a7a}
+  #vDoc .li{display:flex;gap:9px;margin:0 0 6px;padding-left:6px}
+  #vDoc .li-dot{color:var(--green);flex:0 0 auto}
+  #vDoc .doc-tbl{border-collapse:collapse;margin:14px 0;font-size:13px;max-width:100%}
+  #vDoc .doc-tbl td{border:1px solid #3a3a3a;padding:5px 11px;vertical-align:top}
+  #vDoc .doc-tbl tr:first-child td{background:#262626;color:#dadada}
+  #vDoc .doc-img{color:#6b7a72;font-size:12px;background:#242424;padding:1px 6px;border-radius:3px}
+
+  /* ═════ 表格视图 ═════ */
+  #vTable{width:100%;height:auto;max-height:100%;display:none;flex-direction:column;align-self:flex-start;min-height:0}
+  .tbl-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding-bottom:9px;min-height:26px}
+  .sheet-tabs{flex:0 1 auto;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;min-width:0}
+  .tbl-tools{flex:0 0 auto;display:flex;align-items:center;gap:3px;margin-left:auto}
+  .tbl-tools button{
+    height:24px;padding:0 8px;border:1px solid #333;border-radius:5px;
+    background:#1a1a1a;color:#8a8a8a;font-family:var(--mono);font-size:11px;
+    cursor:pointer;white-space:nowrap;
+  }
+  .tbl-tools button:hover{color:#e0e0e0;background:#2c2c2c;border-color:#444}
+  .tbl-tools button:active{background:#383838}
+  .tb-sep{width:1px;height:14px;background:#333;margin:0 5px;flex:0 0 auto}
+  .sort-ind{color:var(--green);font-style:normal;font-size:10px}
+  .sheet-tabs::-webkit-scrollbar{height:0}
+  .sheet-tabs button{
+    height:24px;padding:0 12px;border:1px solid #333;border-radius:5px;
+    background:#1a1a1a;color:#8a8a8a;font-family:var(--mono);font-size:11.5px;
+    cursor:pointer;white-space:nowrap;
+  }
+  .sheet-tabs button:hover{color:#d0d0d0;background:#262626}
+  .sheet-tabs button.on{background:#3a3a3a;color:var(--green);border-color:#4a4a4a}
+  .tbl-scroll{position:relative;flex:0 1 auto;width:fit-content;max-width:100%;height:fit-content;max-height:100%;min-height:0;overflow:auto;border:1px solid #2e2e2e;border-radius:6px;background:#1a1a1a;
+    scrollbar-width:thin;scrollbar-color:#3a3a3a transparent}
+  .tbl-scroll::-webkit-scrollbar{width:11px;height:11px}
+  .tbl-scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px;border:3px solid #1a1a1a}
+  #tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;font-family:var(--mono);
+    white-space:nowrap;user-select:text;table-layout:fixed}
+  /* table-layout:fixed 下 <col> 的 width 指定的是【内容盒】宽度，
+     单元格 padding 会额外加上去 —— 实际渲染比 col 声明的宽，
+     于是浏览器会按「最宽的那格」再撑一次，滚动到长文本行就变宽。
+     改用 border-box 让 col 宽度就是最终占位宽，彻底锁死。 */
+  #tbl th,#tbl td{box-sizing:border-box;border-right:1px solid #2b2b2b;border-bottom:1px solid #2b2b2b;padding:4px 10px;text-align:left}
+  #tbl thead th{position:sticky;top:0;background:#282828;color:#a8a8a8;font-weight:normal;z-index:2;
+    overflow:hidden;text-overflow:ellipsis}
+  #tbl thead th .col-rz{
+    position:absolute;right:0;top:0;width:7px;height:100%;
+    cursor:col-resize;z-index:5;
+  }
+  #tbl thead th .col-rz:hover{background:rgba(95,180,180,.45)}
+  #tbl .rn{position:sticky;left:0;background:#232323;color:#6f7f62;text-align:right;
+    user-select:none;z-index:1;min-width:44px;font-variant-numeric:tabular-nums}
+  #tbl thead .rn{z-index:3}
+  #tbl tbody tr:hover td{background:#262626}
+  #tbl tbody tr:hover .rn{background:#2c2c2c}
+  #tbl td{color:#c9c9c9;overflow:hidden;text-overflow:ellipsis}
+  /* 注意：td 上不能设 min-width。
+     table-layout:fixed 下，单元格 min-width 仍会把列顶宽 —— 滚动到长文本行时
+     列宽会突然变大，表现就是「表格越滚越宽」。列宽一律由 <colgroup> 决定。 */
+  #tbl tbody td{height:23px;padding:0 10px;line-height:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tbl tbody tr.vspacer{height:auto}
+  #tbl tbody tr.vspacer td{height:auto;padding:0;border:none;background:none}
+  #tbl td.num{text-align:right;color:#a9c08d}
+  #tbl td.sel{outline:2px solid #4d7f7f;outline-offset:-2px;background:#25302e !important;color:#eaf6f6}
+  #tbl td{cursor:cell}
+  .cell-edit{
+    position:absolute;z-index:6;box-sizing:border-box;
+    background:#1b1b1b;border:1px solid #5fb4b4;border-radius:2px;
+    color:#eaf6f6;font-family:var(--mono);font-size:12.5px;
+    padding:0 9px;outline:none;
+  }
+  .tbl-note{flex:0 0 auto;padding-top:8px;font-size:11.5px;color:#6b7a72}
+
+  /* ═════ 查找栏 ═════ */
+  .findbar{
+    position:absolute;top:10px;right:24px;z-index:30;
+    display:none;align-items:center;gap:6px;padding:7px 8px;
+    background:var(--bar-2);border:1px solid #383838;border-radius:8px;
+    box-shadow:0 14px 34px -10px rgba(0,0,0,.85);font-size:12px;
+  }
+  .findbar.on{display:flex}
+  .findbar input{
+    width:150px;height:26px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:5px;
+    color:var(--fg);font-family:var(--mono);font-size:12px;padding:0 8px;outline:none;user-select:text;
+  }
+  .findbar input:focus{border-color:#4d6f6f}
+  .findbar .cnt{color:var(--green);min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+  .findbar .cnt.none{color:var(--orange)}
+  .findbar button{
+    height:26px;min-width:26px;background:#2c2c2c;border:1px solid #3a3a3a;border-radius:5px;
+    color:#a5a5a5;font-family:var(--mono);font-size:11px;cursor:pointer;padding:0 7px;
+  }
+  .findbar button:hover{background:#3a3a3a;color:#e0e0e0}
+
+  /* ═════ 菜单 ═════ */
+  .menu{
+    position:absolute;top:90px;right:14px;z-index:40;display:none;flex-direction:column;
+    min-width:214px;padding:5px;background:var(--bar-2);
+    border:1px solid #383838;border-radius:8px;
+    box-shadow:0 18px 40px -12px rgba(0,0,0,.9);
+  }
+  .menu.on{display:flex}
+  .menu button{
+    text-align:left;background:transparent;border:0;border-radius:5px;
+    color:#bdbdbd;font-family:var(--mono);font-size:12.5px;padding:7px 10px;cursor:pointer;
+    display:flex;justify-content:space-between;gap:18px;
+  }
+  .menu button:hover{background:#343434;color:#eaeaea}
+  .menu button:disabled{opacity:.32;cursor:default}
+  .menu button:disabled:hover{background:transparent;color:#bdbdbd}
+  .menu button .k{color:#6b6b6b;font-size:11px}
+  .menu .mline{height:1px;background:#343434;margin:4px 6px}
+  #menuRecent button{max-width:240px;padding:5px 12px}
+  .rc-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:var(--mono);font-size:11.5px;color:#9a9a9a}
+  #menuRecent button:hover .rc-name{color:#e8e8e8}
+
+  /* ═════ 关于 ═════ */
+  .about-mask{
+    position:absolute;inset:0;z-index:90;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(8,10,12,.72);backdrop-filter:blur(3px);
+  }
+  .about-mask.on{display:flex}
+  .about-card{
+    width:396px;padding:26px 28px 22px;
+    background:#212121;border:1px solid #3a3a3a;border-radius:12px;
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.95);
+    text-align:center;color:#c9c9c9;
+  }
+  .about-icon svg{width:52px;height:52px}
+  .about-name{margin-top:10px;font-size:17px;color:#e6e6e6;letter-spacing:2px}
+  .about-ver{font-size:11.5px;color:#6f7f62;margin-top:3px}
+  .about-desc{font-size:12px;color:#8f9f97;line-height:1.9;margin:14px 0 16px}
+  .about-meta{
+    display:flex;flex-direction:column;gap:6px;
+    padding:12px 14px;margin-bottom:14px;
+    background:#1a1a1a;border:1px solid #2e2e2e;border-radius:8px;
+    font-size:12px;
+  }
+  .about-meta div{display:flex;justify-content:space-between;gap:16px}
+  .about-meta span{color:#6b7a72}
+  .about-meta b{color:var(--green);font-weight:normal}
+  .about-lib{font-size:10.5px;color:#5c6b62;margin:0 0 10px}
+  .about-copy{font-size:10.5px;color:#5c6b62;line-height:1.8;margin:0 0 16px}
+  .about-ok{
+    height:30px;padding:0 22px;border:1px solid #3a3a3a;border-radius:6px;
+    background:#2c2c2c;color:#c9c9c9;font-family:var(--mono);font-size:12px;cursor:pointer;
+  }
+  .about-ok:hover{background:#3a3a3a;color:#fff}
+
+  /* ═════ 设置窗口 ═════ */
+  .set-mask{
+    position:absolute;inset:0;z-index:96;display:none;
+    align-items:center;justify-content:center;background:rgba(8,10,12,.6);
+  }
+  .set-mask.on{display:flex}
+  .set-card{
+    width:400px;padding:20px 22px 16px;
+    background:#212121;border:1px solid #3a3a3a;border-radius:10px;
+    box-shadow:0 24px 60px -18px rgba(0,0,0,.95);
+  }
+  .set-title{font-size:13px;color:#dcdcdc;margin-bottom:14px;letter-spacing:1px}
+  .set-row{
+    display:flex;align-items:flex-start;gap:9px;padding:9px 0;
+    border-bottom:1px solid #2b2b2b;font-size:12.5px;color:#b8b8b8;cursor:pointer;
+  }
+  .set-row:last-of-type{border-bottom:0}
+  .set-row input[type=checkbox]{
+    margin-top:2px;width:14px;height:14px;accent-color:#5fb4b4;cursor:pointer;flex:0 0 auto;
+  }
+  .set-row em{display:block;font-style:normal;font-size:11px;color:#6b7a72;margin-top:3px}
+  .set-lab{flex:1 1 auto}
+  .set-num{
+    width:88px;height:26px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:5px;
+    color:#e0e0e0;font-family:var(--mono);font-size:12px;padding:0 8px;outline:none;text-align:right;
+  }
+  .set-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  .set-btns button{
+    height:27px;padding:0 16px;border:1px solid #3a3a3a;border-radius:6px;
+    background:#2c2c2c;color:#b8b8b8;font-family:var(--mono);font-size:12px;cursor:pointer;
+  }
+  .set-btns button:hover{background:#3a3a3a;color:#eee}
+  .set-btns button.primary{background:#2f4a44;border-color:#4a6f66;color:#cfe8e0}
+
+  /* ═════ 输入对话框 ═════ */
+  .ask-mask{
+    position:absolute;inset:0;z-index:95;display:none;
+    align-items:center;justify-content:center;background:rgba(8,10,12,.6);
+  }
+  .ask-mask.on{display:flex}
+  .ask-card{
+    width:340px;padding:18px 20px 16px;
+    background:#212121;border:1px solid #3a3a3a;border-radius:10px;
+    box-shadow:0 24px 60px -18px rgba(0,0,0,.95);
+  }
+  .ask-title{font-size:12.5px;color:#b7b7b7;margin-bottom:10px}
+  .ask-input{
+    width:100%;height:30px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;
+    color:#e4e4e4;font-family:var(--mono);font-size:12.5px;padding:0 10px;outline:none;
+  }
+  .ask-input:focus{border-color:#5fb4b4}
+  .ask-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+  .ask-btns button{
+    height:27px;padding:0 16px;border:1px solid #3a3a3a;border-radius:6px;
+    background:#2c2c2c;color:#b8b8b8;font-family:var(--mono);font-size:12px;cursor:pointer;
+  }
+  .ask-btns button:hover{background:#3a3a3a;color:#eee}
+  .ask-btns button.primary{background:#2f4a44;border-color:#4a6f66;color:#cfe8e0}
+  .ask-btns button.primary:hover{background:#3a5a52;color:#fff}
+
+  /* ═════ 状态栏 ═════ */
+  .statusbar{
+    flex:0 0 auto;padding:11px 28px 15px;display:flex;align-items:baseline;gap:18px;
+    font-size:12.5px;color:var(--green);white-space:nowrap;overflow:hidden;
+  }
+  .statusbar .st{color:var(--green)}
+  .statusbar .st.dim{color:#6e7f62;opacity:.85}
+  .statusbar .spacer{margin-left:auto}
+  .statusbar .st.sel{color:var(--orange)}
+  .statusbar .hide{display:none}
+
+  .drop{
+    position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+    background:rgba(30,30,30,.88);border:1px dashed #4d6f5e;
+    color:var(--green);font-size:13px;letter-spacing:1px;
+  }
+  .drop.on{display:flex}
+
+</style>
+<script>
+/* 自包含启动诊断：任何加载 / 脚本错误都会直接显示在页面里，不再依赖 Rust 回传。 */
+(function(){
+  window.__bootErrs = [];
+  window.__kivBooted = false;
+  var NL = String.fromCharCode(10);
+  function showFatal(title, detail){
+    try {
+      var box = document.getElementById('kivFatal');
+      if (!box){
+        box = document.createElement('div');
+        box.id = 'kivFatal';
+        box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0e0e0e;color:#f4b860;'
+          + 'font:13px/1.65 Consolas,Menlo,monospace;padding:30px;overflow:auto;white-space:pre-wrap;';
+        (document.body || document.documentElement).appendChild(box);
+      }
+      box.textContent = title + NL + NL + detail;
+    } catch(e){ try { document.title = 'ERR:' + String(e); } catch(_){} }
+  }
+  window.addEventListener('error', function(e){
+    var m = (e && e.message) ? e.message : String(e);
+    var s = (e && e.error && e.error.stack) ? e.error.stack : '';
+    window.__bootErrs.push('ERR:' + m + (s ? NL + s : ''));
+    if (!window.__kivBooted) showFatal('KivNote 启动出错', '错误信息：' + NL + m + (s ? NL + NL + s : ''));
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    var r = (e && e.reason) ? (e.reason.message || e.reason) : e;
+    window.__bootErrs.push('REJ:' + String(r));
+    if (!window.__kivBooted) showFatal('KivNote 启动出错（Promise 未处理）', String(r));
+  });
+  setTimeout(function(){
+    if (window.__kivBooted) return;
+    var d = document;
+    var info = [
+      '页面已加载，但主程序没有初始化完成。',
+      '常见原因：tauri-shim.js 没加载，或主脚本抛错。',
+      '',
+      'location    : ' + location.href,
+      'readyState  : ' + (d.readyState),
+      'styleSheets : ' + (d.styleSheets ? d.styleSheets.length : -1),
+      'hasWin      : ' + (!!d.getElementById('win')),
+      'tauri       : ' + (typeof window.__TAURI__),
+      'native      : ' + (typeof window.native),
+      'windowTitle : ' + (d.title || ''),
+      '收集到的错误 : ' + (window.__bootErrs.length ? NL + window.__bootErrs.join(NL) : '（无）')
+    ].join(NL);
+    showFatal('KivNote 未能正常启动', info);
+  }, 3000);
+})();
+</script>
+<!-- Tauri PoC 适配层：仅 Tauri 环境下启用，把 window.native 映射到 window.__TAURI__ -->
+<script src="tauri-shim.js"></script>
 </head>
 <body>
 
 <div class="win" id="win">
 
-  <div class="titlebar" id="titlebar">
+  <div class="titlebar" id="titlebar" data-tauri-drag-region>
     <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-    <div class="title">
+    <div class="title" data-tauri-drag-region>
       <span id="fileName">无标题</span><span class="muted"> - 记事本</span><span class="dirty" id="dirtyMark"></span>
     </div>
     <div class="wctrl">
@@ -83,6 +727,7 @@
           <button data-pdf="zoomIn" title="放大">＋</button>
           <button data-pdf="fit" title="适应宽度">适宽</button>
           <span class="pdf-sp"></span>
+          <button data-pdf="continuous" id="btnPdfCont" title="所有页连续排列（跨页浏览长文档）">连排</button>
           <button data-pdf="extract" title="把文本层提取成可编辑文本">提取文本</button>
           <button data-pdf="exportPages" title="导出指定页为新 PDF（拆页 / 删页）">导出页…</button>
           <button data-pdf="rotate" title="把当前页旋转 90° 后另存">旋转另存</button>
@@ -263,6 +908,9 @@
 
   /* ═════════ 标签数据 ═════════ */
   var tabs = [], seq = 0, cur = null, activeId = null;
+  /* 恢复会话期间的守卫：为 true 时不写 localStorage，
+     避免把「恢复了一半」的中间态存进去把用户标签弄丢。 */
+  var restoring = false;
 
   function makeTab(){
     seq++;
@@ -492,22 +1140,60 @@
     });
   }
 
-  function colDefaultWidth(rows, c){
-    var maxLen = 5;
-    for (var r = 0; r < Math.min(rows.length, 60); r++){
-      var v = rows[r][c];
-      var s = (v === undefined || v === null) ? '' : String(v);
-      maxLen = Math.max(maxLen, Math.min(s.length, 40));
+  /* 按内容估算列宽。
+     关键：必须把【整列】扫完，不能只看前 60 行 —— 否则首屏之外的行里
+     出现长文本时，那一列在初始渲染时宽度就不够，等滚动到那儿才「被顶开」，
+     表现就是表格越滚越宽。
+     中文字符按 2 个单位算（等宽字体里汉字宽度约等于两个西文字符）。 */
+  function textWidthUnits(s){
+    var w = 0;
+    for (var i = 0; i < s.length; i++){
+      var c = s.charCodeAt(i);
+      w += (c > 0x2e80) ? 2 : 1;   /* CJK 及全角标点 */
     }
-    return Math.min(260, Math.max(70, 22 + maxLen * 9));
+    return w;
   }
 
-  function ensureWidths(t, rows, colCount){
+  function colDefaultWidth(rows, c, headVal){
+    var maxLen = 4;
+    if (headVal !== undefined && headVal !== null){
+      maxLen = Math.max(maxLen, textWidthUnits(String(headVal)));
+    }
+    /* 全量扫描是必要的（只看前几行会导致滚动到后面时长文本列被顶宽），
+       但 5 万行 × N 列全扫在超大表上会卡，所以设上限：
+       超过 5000 行时按步长抽样，保证覆盖到表尾（否则末尾的长行仍会顶宽）。 */
+    var n = rows.length;
+    var step = 1;
+    if (n > 5000) step = Math.ceil(n / 5000);
+    for (var r = 0; r < n; r += step){
+      var v = rows[r][c];
+      var s = (v === undefined || v === null) ? '' : String(v);
+      var u = textWidthUnits(s);
+      if (u > maxLen) maxLen = u;
+      /* 单列再宽也不可能超过这个量级，继续扫没意义 */
+      if (maxLen > 120) break;
+    }
+    /* 12.5px 等宽字体：西文约 7.5px/单位，另加 20px 内边距 */
+    return Math.min(420, Math.max(70, 22 + maxLen * 7.6));
+  }
+
+  function ensureWidths(t, rows, colCount, headRow){
     if (!t.colW) t.colW = [];
-    if (t.colW.length === colCount) return;
+    /* 只有列数变了才重算列宽。
+       注意不能只看 colW.length === colCount 就返回：那会导致「用户手动拖过列宽」
+       和「上一轮算出来的旧宽度」被混为一谈。这里用 __colWComputed 标记
+       区分「已按内容算过」和「用户拖过」，两种情况都要保留用户意图：
+         · 用户拖过 → 保留拖动结果，不覆盖
+         · 按内容算过 → 保留（内容没变，重算结果一样）
+       只有列数变化时才整体重算。 */
+    if (t.colW.length === colCount && t.__colWComputed) return;
     var w = [];
-    for (var c = 0; c < colCount; c++) w[c] = t.colW[c] || colDefaultWidth(rows, c);
+    for (var c = 0; c < colCount; c++){
+      w[c] = (t.__colWUserSet && t.colW[c]) ? t.colW[c]
+           : (t.colW[c] || colDefaultWidth(rows, c, headRow ? headRow[c] : undefined));
+    }
     t.colW = w;
+    t.__colWComputed = true;
   }
 
   function drawSheet(t){
@@ -546,13 +1232,20 @@
     }
 
     var colCount = 0;
-    for (var r2 = 0; r2 < Math.min(rows.length, 20); r2++) colCount = Math.max(colCount, rows[r2].length);
+    for (var r2 = 0; r2 < rows.length; r2++) colCount = Math.max(colCount, rows[r2].length);
     colCount = Math.min(colCount, MAX_COLS);
     if (colCount < 1) colCount = 1;
-    ensureWidths(t, rows, colCount);
+    ensureWidths(t, rows, colCount, headRow);
 
     var colHtml = '<colgroup><col style="width:46px">';
-    for (var cw = 0; cw < colCount; cw++) colHtml += '<col style="width:' + (t.colW[cw] || 100) + 'px">';
+    for (var cw = 0; cw < colCount; cw++){
+      var wpx = Math.round(t.colW[cw] || 100);
+      /* width 和 max-width 都要给：table-layout:fixed 下 width 决定列宽，
+         max-width 兜住「内容比列宽长时把列顶宽」的情况。
+         少了 max-width，滚动到长文本行时列仍会被撑开 —— 这正是
+         「表格越滚越宽」的第二个成因。 */
+      colHtml += '<col style="width:' + wpx + 'px;max-width:' + wpx + 'px">';
+    }
     colHtml += '</colgroup>';
 
     var html = colHtml + '<thead><tr><th class="rn"></th>';
@@ -698,10 +1391,13 @@
         rows[x].splice(at, 0, '');
       }
       t.colW.splice(at, 0, 100);
+      /* 列数变了：让 ensureWidths 重新按内容算（插入的是空列，宽度先占位） */
+      t.__colWComputed = false;
     }
     function delCol(at){
       for (var x = 0; x < rows.length; x++){ if (rows[x].length > at) rows[x].splice(at, 1); }
       if (t.colW.length > at) t.colW.splice(at, 1);
+      t.__colWComputed = false;
     }
 
     switch(op){
@@ -729,8 +1425,15 @@
         drawSheet(t);
         return;
       case 'autoWidth':
+        /* 「按内容自适应」：清掉已有列宽，重算一遍。
+           __colWComputed 必须一并清掉，否则 ensureWidths 会因
+           「列数没变」直接早退，宽度根本没重算。 */
         t.colW = [];
-        ensureWidths(t, rows, Math.max(1, colCount));
+        t.__colWComputed = false;
+        t.__colWUserSet = false;
+        var hasHeadAuto = rows.length > 1 && rows[0].some(function(x){ return String(x).trim(); }) &&
+          !rows[0].some(function(x){ return x !== '' && !isNaN(Number(x)) && String(x).trim() !== ''; });
+        ensureWidths(t, rows, Math.max(1, colCount), hasHeadAuto ? rows[0] : null);
         t.dirtySheets[t.sheetIdx] = true;
         markDirty(t, true);
         drawSheet(t);
@@ -804,22 +1507,136 @@
     saveSettings();
   }
 
+  /* ═════════ 会话持久化 ═════════
+     刷新后要还原标签页，必须记住的不只是「有哪些文件」，还有：
+       · 标签的【顺序】—— 之前只存 path 数组，恢复时用 Promise 并行打开，
+         哪个先返回哪个先进 tabs，顺序会乱；
+       · 【无 path 的新建标签】（比如「无标题」的空白标签）—— 之前被 filter 掉了，
+         刷新后这类标签直接消失；
+       · 当前激活的是哪个标签。
+     所以这里存的是「标签描述数组」而不是纯 path 数组。
+     兼容旧格式：数组元素是字符串时按 path 处理。 */
   function rememberSession(){
     try {
-      var paths = tabs.filter(function(t){ return t.path; }).map(function(t){ return t.path; });
-      localStorage.setItem('notepad.session', JSON.stringify(paths));
+      var items = tabs.map(function(t){
+        return {
+          path: t.path || null,
+          name: t.name || '无标题',
+          kind: t.kind || 'text',
+          /* 空白新建标签没 path，但内容可能有（用户手打的字），
+             一起存下来才能真正还原 */
+          content: (!t.path && t.kind === 'text') ? (t.content || '') : null
+        };
+      });
+      /* 激活项用【下标】记录，不能用 tab.id ——
+         刷新后 seq 从 1 重新计数，id 对不上。
+         下标才是「同一个位置」的稳定标识。 */
+      var activeIdx = -1;
+      for (var i = 0; i < tabs.length; i++){
+        if (tabs[i] === cur){ activeIdx = i; break; }
+      }
+      localStorage.setItem('notepad.session', JSON.stringify({
+        v: 2,
+        activeIdx: activeIdx,
+        items: items
+      }));
     } catch (e) {}
   }
 
   function restoreSession(){
-    var paths = [];
-    try { paths = JSON.parse(localStorage.getItem('notepad.session') || '[]'); } catch (e) {}
-    if (!paths || !paths.length) return;
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem('notepad.session') || 'null'); } catch (e) {}
+    if (!raw) return;
+
+    /* 旧格式：纯 path 数组 */
+    if (Array.isArray(raw)){
+      var paths = raw.filter(function(x){ return typeof x === 'string' && x; });
+      if (!paths.length) return;
+      restorePaths(paths);
+      return;
+    }
+    if (!raw.items || !raw.items.length) return;
+
+    var items = raw.items.slice(0, 20);
+    restoring = true;
+
+    /* 串行打开：必须按原顺序，否则 tabs 的顺序会跟「谁先打开完」走。
+       每项结果记进 results[i]，保持与 items 的下标对应。 */
+    var results = new Array(items.length).fill(null);
+    var chain = Promise.resolve();
+    items.forEach(function(it, idx){
+      chain = chain.then(function(){
+        if (!it || !it.path) return;
+        return Promise.resolve()
+          .then(function(){ return native.openPath(it.path); })
+          .then(function(doc){ if (doc && !doc.error) results[idx] = doc; })
+          .catch(function(e){ reportErr('恢复会话失败', e); });
+      });
+    });
+
+    chain.then(function(){
+      /* 全部打开完，再按原下标建标签 —— 顺序与刷新前完全一致。
+         做法：先按 items 的原始下标把每个位置都填上（文件标签或空白标签），
+         最后再把空位剔除。这样顺序天然正确，不需要事后「插回」。 */
+      var built = new Array(items.length).fill(null);
+      var firstFile = true;
+      items.forEach(function(it, idx){
+        var doc = results[idx];
+        if (!doc){
+          /* 无 path 的新建标签：造一个空白标签占位 */
+          var t = makeTab();
+          t.name = (it && it.name) || '无标题';
+          t.kind = (it && it.kind) || 'text';
+          if (t.kind === 'text' && it && it.content){ t.content = it.content; t.saved = it.content; }
+          built[idx] = t;
+          return;
+        }
+        if (firstFile && canReuseTab()){
+          /* 复用初始那个空白标签，把它变成第一个文件标签 */
+          fillFromDoc(cur, doc);
+          built[idx] = cur;
+          firstFile = false;
+          return;
+        }
+        firstFile = false;
+        var nt = makeTab();
+        fillFromDoc(nt, doc);
+        built[idx] = nt;
+      });
+
+      /* 按原顺序重排 tabs（剔除没能打开的文件的空位） */
+      var newTabs = [];
+      built.forEach(function(t){ if (t) newTabs.push(t); });
+      /* 原本那个初始空白标签，如果没被复用（没有任何文件）就保留在首位 */
+      if (newTabs.indexOf(cur) < 0 && cur && !cur.path && tabs.length === 1){
+        newTabs.unshift(cur);
+      }
+      tabs = newTabs;
+      if (!tabs.length){
+        var nt2 = makeTab(); tabs.push(nt2); activeId = nt2.id; cur = nt2;
+      }
+      /* 激活项按下标找 */
+      var idx = (typeof raw.activeIdx === 'number') ? raw.activeIdx : 0;
+      var at = tabs[idx] || tabs[0];
+      activeId = at.id; cur = at;
+      renderTabs(); applyTab();
+      restoring = false;
+      rememberSession();
+    }).catch(function(e){
+      restoring = false;
+      reportErr('恢复会话失败', e);
+    });
+  }
+
+  /* 旧版路径式恢复（保留给旧 localStorage 数据） */
+  function restorePaths(paths){
+    var chain = Promise.resolve();
     paths.slice(0, 12).forEach(function(p){
-      native.openPath(p).then(function(doc){
-        if (!doc || doc.error) return;
-        if (canReuseTab()){ fillFromDoc(cur, doc); renderTabs(); applyTab(); }
-        else addTab(doc, tabs.length === 0);
+      chain = chain.then(function(){
+        return Promise.resolve()
+          .then(function(){ return native.openPath(p); })
+          .then(function(doc){ if (doc && !doc.error) addTab(doc, false); })
+          .catch(function(e){ reportErr('恢复会话失败', e); });
       });
     });
   }
@@ -1104,6 +1921,17 @@
     }).catch(function(){ pdfFail('PDF 组件加载失败'); });
   }
 
+  /* Promise 版：给 PPT→PDF 栅格化链路用（那条链路是串行 Promise 链，
+     回调版套一层 Promise 反而更绕） */
+  function ensurePdfjsAsync(){
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    return loadLib('pdf.js').then(function () {
+      if (!window.pdfjsLib) throw new Error('PDF 组件加载失败');
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.js'; } catch (e) {}
+      return window.pdfjsLib;
+    });
+  }
+
   function renderPdf(t){
     wrapEl.classList.remove('is-text');
     wrapEl.classList.add('is-view');
@@ -1140,6 +1968,8 @@
   function paintPdfPage(t){
     var doc = t.pdfDoc;
     if (!doc) return;
+    /* 连排模式：所有页连续排开，滚动浏览（长文档跨页查看） */
+    if (t.pdfContinuous){ paintPdfContinuous(t); return; }
     /* 翻页前先清掉上一页的渲染缓存，避免大 PDF 越翻越占内存 */
     try {
       if (t.__pdfPage && t.__pdfPage !== t.pdfPage && t.__pdfObj){
@@ -1177,6 +2007,7 @@
       wrap.appendChild(layer);
 
       var box = $('pdfScroll');
+      box.classList.remove('cont');
       box.innerHTML = '';
       box.appendChild(wrap);
 
@@ -1204,6 +2035,129 @@
     });
   }
 
+  /* ═════ PDF 连排模式 ═════
+     把所有页按顺序连续排开，像浏览器内置阅读器那样一路滚下去。
+     关键约束：不能一次把上百页都渲染成 canvas（内存会炸），
+     所以用「占位 div 定高 + IntersectionObserver 只渲染进入视口的页」。
+     定高用第一页的实际高度推算（同一文档各页尺寸一致）。 */
+  function paintPdfContinuous(t){
+    var doc = t.pdfDoc;
+    if (!doc) return;
+    var box = $('pdfScroll');
+    var total = doc.numPages;
+
+    if (t.__pdfContBuilt === total && t.__pdfContScale === t.pdfScale){
+      /* 尺寸没变，只要滚回当前页 */
+      var target = box.querySelector('[data-pg="' + t.pdfPage + '"]');
+      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'start' });
+      return;
+    }
+
+    /* 先拿第一页尺寸，用来给每页占位 */
+    doc.getPage(1).then(function(first){
+      var base = first.getViewport({ scale: 1 });
+      var scale = t.pdfScale;
+      var pageH = Math.round(base.height * scale);
+      var pageW = Math.round(base.width * scale);
+
+      box.innerHTML = '';
+      box.classList.add('cont');
+      var frag = document.createDocumentFragment();
+      for (var i = 1; i <= total; i++){
+        var holder = document.createElement('div');
+        holder.className = 'pdf-page pdf-page-cont';
+        holder.setAttribute('data-pg', i);
+        holder.style.width = pageW + 'px';
+        holder.style.height = pageH + 'px';
+        holder.style.position = 'relative';
+        var num = document.createElement('div');
+        num.className = 'pdf-page-no';
+        num.textContent = i;
+        holder.appendChild(num);
+        frag.appendChild(holder);
+      }
+      box.appendChild(frag);
+
+      t.__pdfContBuilt = total;
+      t.__pdfContScale = scale;
+      t.__pdfContW = pageW;
+      t.__pdfContH = pageH;
+
+      /* 懒渲染：进入视口才画 canvas */
+      if (t.__pdfContObserver){
+        try { t.__pdfContObserver.disconnect(); } catch (e) {}
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          var holder = en.target;
+          io.unobserve(holder);
+          renderContPage(t, holder, pageW, pageH);
+        });
+      }, { root: box, rootMargin: '400px 0px' });
+      t.__pdfContObserver = io;
+
+      var holders = box.querySelectorAll('.pdf-page-cont');
+      for (var k = 0; k < holders.length; k++) io.observe(holders[k]);
+
+      $('pdfPage').textContent = '1 / ' + total;
+      $('pdfZoom').textContent = Math.round(scale * 100) + '%';
+
+      /* 滚动时更新当前页码 + 缩略图高亮 */
+      if (!t.__pdfContScroll){
+        t.__pdfContScroll = function () {
+          if (!cur || !cur.pdfContinuous) return;
+          var sc = $('pdfScroll');
+          var mid = sc.scrollTop + sc.clientHeight / 2;
+          var idx = Math.floor(mid / (pageH + 12)) + 1;
+          idx = Math.min(Math.max(1, idx), total);
+          if (cur.pdfPage !== idx){
+            cur.pdfPage = idx;
+            $('pdfPage').textContent = idx + ' / ' + total;
+            try { markThumb(cur); } catch (e) {}
+          }
+        };
+        $('pdfScroll').addEventListener('scroll', t.__pdfContScroll);
+      }
+    }).catch(function (err) {
+      pdfFail('连排渲染失败：' + err.message);
+    });
+  }
+
+  /* 连排模式下把单页画进占位 div */
+  function renderContPage(t, holder, pageW, pageH){
+    if (holder.getAttribute('data-rendered')) return;
+    holder.setAttribute('data-rendered', '1');
+    var pn = +holder.getAttribute('data-pg');
+    var doc = t.pdfDoc;
+    if (!doc) return;
+    doc.getPage(pn).then(function (page) {
+      var dpr = window.devicePixelRatio || 1;
+      var vp = page.getViewport({ scale: t.pdfScale * dpr });
+      var cssVp = page.getViewport({ scale: t.pdfScale });
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(vp.width);
+      canvas.height = Math.round(vp.height);
+      canvas.style.width = pageW + 'px';
+      canvas.style.height = pageH + 'px';
+      holder.appendChild(canvas);
+      var layer = document.createElement('div');
+      layer.className = 'textLayer';
+      layer.style.width = pageW + 'px';
+      layer.style.height = pageH + 'px';
+      layer.style.setProperty('--scale-factor', String(t.pdfScale));
+      holder.appendChild(layer);
+      page.render({ canvasContext: canvas.getContext('2d', { alpha: false }), viewport: vp }).promise
+        .then(function () {
+          try { page.getTextContent().then(function (tc) {
+            if (!window.pdfjsLib || !window.pdfjsLib.renderTextLayer) return;
+            window.pdfjsLib.renderTextLayer({ textContent: tc, container: layer, viewport: cssVp, enhanceTextSelection: false });
+            try { pdfCacheText(t, pn, tc); } catch (e) {}
+          }).catch(function () {}); } catch (e) {}
+        }).catch(function () {});
+    }).catch(function () {});
+  }
+
   /* 缓存每页纯文本，供查找用 */
   function pdfCacheText(t, pageNo, textContent){
     if (!t.pdfTexts) t.pdfTexts = {};
@@ -1227,14 +2181,36 @@
     if (!t || !t.pdfDoc) return;
     if (op === 'prev'){ t.pdfPage = Math.max(1, t.pdfPage - 1); paintPdfPage(t); }
     else if (op === 'next'){ t.pdfPage = Math.min(t.pdfDoc.numPages, t.pdfPage + 1); paintPdfPage(t); }
-    else if (op === 'zoomIn'){ t.pdfScale = Math.min(4, t.pdfScale + 0.15); paintPdfPage(t); }
-    else if (op === 'zoomOut'){ t.pdfScale = Math.max(0.4, t.pdfScale - 0.15); paintPdfPage(t); }
+    else if (op === 'zoomIn'){ t.pdfScale = Math.min(4, t.pdfScale + 0.15); t.__pdfContBuilt = 0; paintPdfPage(t); }
+    else if (op === 'zoomOut'){ t.pdfScale = Math.max(0.4, t.pdfScale - 0.15); t.__pdfContBuilt = 0; paintPdfPage(t); }
     else if (op === 'fit'){
       t.pdfDoc.getPage(t.pdfPage).then(function(page){
         var base = page.getViewport({ scale: 1 });
         var w = $('pdfScroll').clientWidth - 32;
         if (w > 0){ t.pdfScale = Math.max(0.4, Math.min(4, w / base.width)); paintPdfPage(t); }
       });
+    }
+    else if (op === 'continuous'){
+      t.pdfContinuous = !t.pdfContinuous;
+      var btn = $('btnPdfCont');
+      if (btn) btn.classList.toggle('on', !!t.pdfContinuous);
+      if (t.pdfContinuous){
+        /* 连排时先按宽度自适应一次，否则窄屏会看到一堆被切掉的页 */
+        t.pdfDoc.getPage(1).then(function(page){
+          var base = page.getViewport({ scale: 1 });
+          var w = $('pdfScroll').clientWidth - 40;
+          if (w > 0) t.pdfScale = Math.max(0.4, Math.min(2, w / base.width));
+          t.__pdfContBuilt = 0;   // 强制重建
+          paintPdfPage(t);
+        });
+      } else {
+        /* 退出连排：清掉占位，回到单页模式 */
+        t.__pdfContBuilt = 0;
+        if (t.__pdfContObserver){ try { t.__pdfContObserver.disconnect(); } catch (e) {} t.__pdfContObserver = null; }
+        $('pdfScroll').classList.remove('cont');
+        $('pdfScroll').innerHTML = '';
+        paintPdfPage(t);
+      }
     }
     else if (op === 'extract'){ extractPdfText(); }
     else if (op === 'exportPages'){ exportPdfPages(t); }
@@ -1423,20 +2399,88 @@
       }
     }).catch(function(){});
 
-    /* 后台用本机 Office / WPS 渲染精确图片，好了再替换 */
+    /* 后台用 LibreOffice 转 PDF 再栅格化成位图（版式 100% 保真），好了再替换 */
     native.pptRender(t.path).then(function(r){
-      if (r && r.images && r.images.length){
-        t.pptImages = r.images;
+      if (r && r.ok && r.pdf) return rasterizePdfToImages(r.pdf, t);
+      if (!t.pptSlides) fallbackPpt(t, r && r.error);
+    }).catch(function(e){
+      if (!t.pptSlides) fallbackPpt(t, (e && e.message) || null);
+    });
+  }
+
+  /* PDF → 每页 PNG dataURL。
+     LibreOffice 只保证「导出 PDF 正确」，位图化交给 pdf.js —— 与 PDF 视图同一套
+     渲染引擎，因此 PPT 页和 PDF 页长得一模一样，也不用引入第二种渲染路径。 */
+  function rasterizePdfToImages(pdfPath, t){
+    var box = $('pptScroll');
+    var guard = function(){ if (cur !== t) return; $('pptInd').textContent = '正在精确渲染…'; };
+    guard();
+    return ensurePdfjsAsync()
+      .then(function(){ return native.readB64(pdfPath); })
+      .then(function(r){
+        if (!r || !r.ok || !r.b64) throw new Error((r && r.error) || '读不到转换出的 PDF');
+        if (cur !== t) return null;
+        var data = b64ToBytes(r.b64);
+        return window.pdfjsLib.getDocument({
+          data: data, disableAutoFetch: true, useWorkerFetch: false, isEvalSupported: false
+        }).promise;
+      })
+      .then(function(doc){
+        if (!doc || cur !== t) return null;
+        t.__pptPdfDoc = doc;
+        var total = doc.numPages;
+        if (t.pptImages) t.pptImages.length = 0;
+        t.pptImages = [];
         t.pptPage = 1;
         t.pptAll = false;
-        paintPptImages(t);
-        if (r.cached) return;
-        return;
-      }
-      if (!t.pptSlides) fallbackPpt(t, r && r.error);
-    }).catch(function(){
-      if (!t.pptSlides) fallbackPpt(t, null);
-    });
+        $('pptInd').textContent = '正在精确渲染 0 / ' + total + ' 页';
+
+        /* 串行渲染：并发起多个 canvas 在 WebView2 里容易顶爆内存 */
+        var chain = Promise.resolve();
+        for (var i = 1; i <= total; i++){
+          chain = chain.then((function (no) {
+            return function () {
+              if (cur !== t) return;
+              return doc.getPage(no).then(function (page) {
+                /* 按幻灯片逻辑宽度取 2 倍像素密度：1080p 宽足够清晰，又不至于
+                   一页就吃掉几十 MB 位图 */
+                var base = page.getViewport({ scale: 1 });
+                if (!t.__pptAspect) t.__pptAspect = base.width / base.height;
+                var scale = Math.min(4, Math.max(1.2, 1280 / base.width));
+                var vp = page.getViewport({ scale: scale });
+                var cv = document.createElement('canvas');
+                cv.width = Math.floor(vp.width);
+                cv.height = Math.floor(vp.height);
+                var ctx = cv.getContext('2d');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, cv.width, cv.height);
+                return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function () {
+                  t.pptImages.push(cv.toDataURL('image/png'));
+                  $('pptInd').textContent = '正在精确渲染 ' + no + ' / ' + total + ' 页';
+                  /* 边渲染边出图：第 1 页一好就能先看，不用等整份
+                     几十页的 PPT 全部转完 */
+                  if (no === 1) paintPptImages(t);
+                });
+              }).catch(function () { /* 单页失败就跳过，别中断整份 */ });
+            };
+          })(i));
+        }
+        return chain.then(function () {
+          if (cur !== t) return;
+          if (!t.pptImages.length){
+            fallbackPpt(t, 'LibreOffice 转出的 PDF 一页都渲染不出来');
+            return;
+          }
+          /* 记录幻灯片比例，供近似解析器模式的容器尺寸用 */
+          if (t.__pptAspect){ t.pptCx = 1280; t.pptCy = Math.round(1280 / t.__pptAspect); }
+          paintPptImages(t);
+        });
+      })
+      .catch(function (err) {
+        if (cur !== t) return;
+        /* PDF 路径挂了也不能把文件弄丢 —— 退回内置近似解析 */
+        fallbackPpt(t, '精确渲染失败（' + ((err && err.message) || err) + '），已切回内置解析');
+      });
   }
 
   function fallbackPpt(t, why){
@@ -2180,6 +3224,11 @@
     }
     if (t.viewMode === 'hex') t.hexHTML = $('vHex').innerHTML;
     if (t.kind === 'docx' && t.docxHTML) {} /* 已缓存 */
+    /* stash 是切换/打开前的统一收口点，也是 rememberSession 唯一可靠的触发时机：
+       标签增删改（addTab/closeTab/fillFromDoc）路径太散，容易漏。
+       WebView2 默认右键菜单里有「刷新」，一旦被触发就是整页 reload，
+       内存态标签全丢 —— 只能靠localStorage 的路径清单救回来。 */
+    if (typeof rememberSession === 'function') rememberSession();
   }
 
   function applyTab(){
@@ -2235,7 +3284,14 @@
     t.raw = { bytes: [], offset: 0, start: 0, eof: false, size: doc.size, rendered: 0 };
     t.edits = {}; t.hexCur = -1; t.nibble = 'hi'; t.hexHTML = ''; t.loading = false;
     t.sheets = null; t.sheetIdx = 0; t.tableInfo = ''; t.cellEdits = {}; t.wb = null;
-    t.dirtySheets = {}; t.colW = []; t.docxHTML = ''; t.blocks = null; t.pptSlides = null; t.pptImages = null; t.pptPage = 1; t.pptAll = false; t.pptCx = 12192000; t.pptCy = 6858000; t.sort = null; t.filter = null; t.undo = []; t.redo = []; t.pdfDoc = null; t.pdfPage = 1; t.pdfScale = 1.25;
+    t.dirtySheets = {}; t.colW = []; t.__colWComputed = false; t.__colWUserSet = false; t.docxHTML = ''; t.blocks = null; t.pptSlides = null; t.pptImages = null; t.pptPage = 1; t.pptAll = false; t.pptCx = 12192000; t.pptCy = 6858000; t.sort = null; t.filter = null; t.undo = []; t.redo = []; t.pdfDoc = null; t.pdfPage = 1; t.pdfScale = 1.25;
+    /* PPT 精确渲染用的 PDF 文档对象也要显式释放：pdf.js 的 worker/缓存不会随
+       DOM 一起走，不 destroy 的话来回切 PPT 标签会一路涨内存（正好违背本项目
+       换 Tauri 的初衷）。位图 t.pptImages 由上面的清理负责回收。*/
+    if (t.__pptPdfDoc){ try { t.__pptPdfDoc.destroy(); } catch (e) {} t.__pptPdfDoc = null; }
+    t.__pptAspect = 0;
+    t.pdfContinuous = false; t.__pdfContBuilt = 0; t.__pdfContScale = 0;
+    t.__pdfContObserver = null; t.__pdfContScroll = null;
     t.viewMode = 'normal';
   }
 
@@ -2244,11 +3300,16 @@
     if (doc && !doc.error) fillFromDoc(t, doc);
     else { t.content = SAMPLE; t.saved = SAMPLE; t.size = new Blob([SAMPLE]).size; }
     tabs.push(t);
+    /* 注意：无论是否激活都要记会话。恢复会话时走 addTab(doc, false)，
+       若这里只在 activate 分支里存，恢复出来的标签不会被写回 localStorage，
+       下次刷新又全没了。
+       但恢复过程中不能写 —— 那会把「只恢复了一半」的中间态存进去，
+       反而把用户的标签弄丢。所以用 __restoring 挡一下。 */
+    if (!restoring) setTimeout(rememberSession, 50);
     if (activate !== false){
       stash();
       activeId = t.id; cur = t;
       renderTabs(); applyTab();
-      if (rememberSession) setTimeout(rememberSession, 50);
       if (doc && doc.error) note('<div class="big">打不开</div><div class="sm">' + esc(doc.error) + '</div>');
     }
     return t;
@@ -2324,7 +3385,9 @@
   }
 
   function finishConvert(t, doc, newPath){
-    native.openPath(newPath).then(function(d2){
+    Promise.resolve()
+      .then(function(){ return native.openPath(newPath); })
+      .then(function(d2){
       if (!d2 || d2.error){
         note('<div class="big">转换后仍然读不了</div><div class="sm">' + esc((d2 && d2.error) || '') + '</div>');
         return;
@@ -2335,17 +3398,31 @@
       fillFromDoc(t, d2);
       renderTabs();
       if (cur === t) applyTab();
-    });
+      })
+      .catch(function(e){ reportErr('打开转换结果失败', e); });
+  }
+
+  // 统一的错误出口：Tauri 适配层失败时把原因直接显示出来，避免静默无响应
+  function reportErr(prefix, e){
+    var msg = (e && e.message) ? e.message : (e ? String(e) : '未知错误');
+    try { if (window.__kivToast) window.__kivToast(prefix + ': ' + msg); } catch (_) {}
+    console.error(prefix, e);
   }
 
   function doOpen(){
     if (!native) return;
-    native.open().then(acceptDoc);
+    Promise.resolve()
+      .then(function(){ return native.open(); })
+      .then(acceptDoc)
+      .catch(function(e){ reportErr('打开失败', e); });
   }
 
   function openPath(p){
     if (!native || !p) return;
-    native.openPath(p).then(acceptDoc);
+    Promise.resolve()
+      .then(function(){ return native.openPath(p); })
+      .then(acceptDoc)
+      .catch(function(e){ reportErr('打开失败', e); });
   }
 
   function doSave(asNew){
@@ -2939,7 +4016,8 @@
     if (rcBtn){
       var rp = rcBtn.getAttribute('data-recent');
       hideMenu();
-      if (native) native.openPath(rp).then(acceptDoc);
+      if (native) Promise.resolve().then(function(){ return native.openPath(rp); }).then(acceptDoc)
+        .catch(function(e){ reportErr('打开失败', e); });
       return;
     }
 
@@ -3004,7 +4082,13 @@
     if (!rzDrag) return;
     var w = Math.max(36, Math.round(rzDrag.startW + e.clientX - rzDrag.startX));
     rzDrag.col.style.width = w + 'px';
-    if (cur && cur.colW) cur.colW[rzDrag.c] = w;
+    /* max-width 也要同步，否则 fixed 布局下浏览器仍可能按内容把列顶宽 */
+    rzDrag.col.style.maxWidth = w + 'px';
+    if (cur && cur.colW){
+      cur.colW[rzDrag.c] = w;
+      /* 标记「用户手动调过」：后续重算列宽时不能覆盖用户的调整 */
+      cur.__colWUserSet = true;
+    }
   });
   window.addEventListener('mouseup', function(){
     if (!rzDrag) return;
@@ -3181,6 +4265,38 @@
   });
 
   if (native){
+    /* Tauri 拖拽桥：tauri-shim.js 监听原生拖拽事件后回调这里（WebView2 的 HTML5 drop 拿不到真实路径） */
+    window.__kivOpenPaths = function(paths){
+      (paths || []).forEach(function(p){
+        Promise.resolve()
+          .then(function(){ return native.openPath(p); })
+          .then(function(doc){ if (doc) addTab(doc); })
+          .catch(function(e){ reportErr('打开失败', e); });
+      });
+    };
+
+    /* ── 阻止整页刷新 ─────────────────────────────
+       Tauri/WebView2 的默认右键菜单里带「刷新」，还有 F5 / Ctrl+R / Ctrl+Shift+R。
+       这些都会整页 reload，把所有内存态标签（未保存的编辑内容、滚动位置、
+       已渲染好的 PDF/PPT）一次清空 —— 对记事本类应用是数据丢失级别的。
+       Tauri v2 没有暴露 wry 的 with_default_context_menus(false)，
+       所以在 WebView 层面拦截：右键菜单是 WebView2 原生控件，它在派发
+       DOM contextmenu 之前就会弹出，JS 拦不住菜单本身，
+       但 reload 的后果可以通过「刷新前存会话 + 刷新后恢复」兜住。
+       —— 因此这里做的是：① 立刻存一次会话 ② 屏蔽 F5/Ctrl+R 快捷键。 */
+    window.addEventListener('beforeunload', function () {
+      try { stash(); rememberSession(); } catch (e) {}
+    });
+    window.addEventListener('keydown', function (e) {
+      var k = (e.key || '').toLowerCase();
+      var isF5 = k === 'f5';
+      var isReload = (e.ctrlKey || e.metaKey) && (k === 'r' || k === 'f5');
+      if (!isF5 && !isReload) return;
+      /* 有未保存改动时更不能让人随手刷掉：明确提示而不是静默丢数据 */
+      var dirty = tabs.some(function (t) { return t.dirty; });
+      if (dirty && !confirm('有文档尚未保存，仍要重新加载吗？')) { e.preventDefault(); return; }
+      try { stash(); rememberSession(); } catch (err) {}
+    }, true);
     native.onCmd(function(cmd){
       if (cmd.indexOf('open-path:') === 0){ openPath(cmd.slice(10)); return; }
       if (cmd.indexOf('view:') === 0){ setView(cmd.slice(5)); return; }
@@ -3218,27 +4334,13 @@
     if (native){
       native.cliArg().then(function(p){
         if (p){ openPath(p); return; }
-        if (settings.restoreSession){
-          setTimeout(function(){
-            var paths = [];
-            try { paths = JSON.parse(localStorage.getItem('notepad.session') || '[]'); } catch (e) {}
-            if (!paths.length) return;
-            var go = function(list){
-              if (!list.length) return;
-              var p0 = list.shift();
-              native.openPath(p0).then(function(doc){
-                if (doc && !doc.error){
-                  if (canReuseTab()){ fillFromDoc(cur, doc); renderTabs(); applyTab(); }
-                  else addTab(doc, false);
-                }
-                go(list);
-              });
-            };
-            go(paths.slice(0, 12));
-          }, 250);
-        }
+        /* 刷新（F5/右键「刷新」）后靠这里把标签救回来。
+           统一走 restoreSession()，不要再在这里另写一份 —— 之前两份实现各
+           走各的，改一处漏一处，是「刷新后文件没回来」的直接原因。*/
+        if (settings.restoreSession) setTimeout(restoreSession, 250);
       });
     }
+    window.__kivBooted = true; // 主程序初始化完成，启动看门狗据此判定
   })();
 
 })();
