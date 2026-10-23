@@ -1,4 +1,4 @@
-# KivNote 项目完整概述（截至 2026-10-22 v3.3.0）
+# KivNote 项目完整概述（截至 2026-10-23 v3.4.0）
 
 > 本文档用于跨对话框续接。下次新开对话时，先读本文件即可快速恢复上下文。
 
@@ -11,7 +11,7 @@
 
 - GitHub：`https://github.com/kivvs/kivnote`
 - 本地路径：`C:/Users/Lenovo/WorkBuddy/2026-10-21-14-15-36/app`
-- 当前版本：**v3.3.0**（已打 tag、已发 Release）
+- 当前版本：**v3.4.0**（已打 tag、已发 Release）
 
 ### 支持的格式
 | 类别 | 格式 |
@@ -74,7 +74,7 @@
 ### 发布流程
 - **`gh release create` 一次传多文件（954MB）会卡 35 分钟 0 字节** → 必须**逐个 `gh release upload`**（每个约 2 分钟）。
 - **版本号同步点**：`package.json` + `renderer/index.html`（"版本 X.X.X" 和 `>vX.X.X<`）+ `使用说明.md` + `CHANGELOG.md` + 内置 `help.md`。任一处漏改都会不一致。
-- tag 已打：v3.0.0 / v3.1.0 / v3.2.0 / v3.2.1 / v3.3.0 全部存在。
+- tag 已打：v3.0.0 / v3.1.0 / v3.2.0 / v3.2.1 / v3.3.0 / v3.4.0 全部存在。
 
 ### 网络/代理（本机环境特有）
 - **gh CLI** 必须用 `env -u https_proxy -u HTTPS_PROXY -u http_proxy -u HTTP_PROXY gh`（本机常驻全局代理会让 `github.com/login/device` 走代理 Bad Gateway）。路径：`"C:/Program Files/GitHub CLI/gh.exe"`。
@@ -144,4 +144,4 @@ env -u https_proxy -u HTTPS_PROXY -u http_proxy -u HTTP_PROXY gh release upload 
 ```
 
 ---
-*最后更新：2026-10-22，对应代码状态 commit 8642cd9（3.3.0）。*
+*最后更新：2026-10-23，对应代码状态 commit e22623a（3.4.0）。*

@@ -98,7 +98,7 @@ app/
   "appliesTo": ["pdf"],                // 触发加载的扩展名
   "loadMode": "onOpen",                // always | onOpen | onDemand
   "size": 56000000,
-  "minApp": "3.3.0",
+  "minApp": "3.4.0",
   "description": "PDF 渲染、文本层、缩略图、查找、旋转/导出页",
   "download": "https://github.com/kivvs/kivnote/releases/download/plugins/pdf-1.0.0.kivplugin.zip"
 }
